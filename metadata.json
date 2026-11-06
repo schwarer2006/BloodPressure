@@ -1,0 +1,10 @@
+{
+  "name": "BloodPressure – Intelligenter Blutdruckmanager",
+  "description": "Moderne, sichere und offline-fähige Anwendung zur Erfassung, Analyse und zum Export von Blutdruckmessungen mit Kamera-Display-Erkennung und PDF-Tagebuch.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
