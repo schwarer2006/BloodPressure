@@ -23,6 +23,7 @@ import {
 import { UserProfile } from '../types/bloodPressure';
 import { WHO_CATEGORIES } from '../services/bloodPressureUtils';
 import { StorageService } from '../services/storage';
+import { PWAInstallCard } from './PWAInstallCard';
 
 interface ProfileAndSettingsViewProps {
   currentProfile: UserProfile;
@@ -321,6 +322,9 @@ export const ProfileAndSettingsView: React.FC<ProfileAndSettingsViewProps> = ({
         </button>
       </form>
 
+      {/* PWA App Installation Card */}
+      <PWAInstallCard />
+
       {/* App & Design Settings */}
       <div className="rounded-3xl p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -570,15 +574,15 @@ export const ProfileAndSettingsView: React.FC<ProfileAndSettingsViewProps> = ({
         </div>
       )}
 
-      {/* ANDROID KOTLIN SOURCE CODE MODAL */}
+      {/* ANDROID CAPACITOR & KOTLIN SOURCE CODE MODAL */}
       {showKotlinModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-3xl bg-slate-950 border border-slate-800 text-white p-5 space-y-3 shadow-2xl">
+          <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-3xl bg-slate-950 border border-slate-800 text-white p-5 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Code2 className="w-4 h-4 text-sky-400" />
                 <h3 className="text-sm font-bold">
-                  Android Jetpack Compose & Room Architektur
+                  Android-Integration & Architektur (Capacitor 8 / Kotlin)
                 </h3>
               </div>
               <button
@@ -590,12 +594,51 @@ export const ProfileAndSettingsView: React.FC<ProfileAndSettingsViewProps> = ({
             </div>
 
             <p className="text-xs text-slate-400">
-              Native Android-Komponenten für Jetpack Compose, Room Database und CameraX OCR:
+              Vollständige native Android-Integration via Capacitor 8 mit Gradle-Build, Kamera-Berechtigungen und optionaler Kotlin/Room-Referenz:
             </p>
 
-            <div className="overflow-y-auto flex-1 font-mono text-[11px] bg-slate-900 p-3 rounded-xl space-y-4">
+            <div className="overflow-y-auto flex-1 font-mono text-[11px] bg-slate-900 p-3.5 rounded-xl space-y-4">
               <div>
-                <span className="text-sky-400 font-bold">// MeasurementEntity.kt (Room SQLite Entity)</span>
+                <span className="text-emerald-400 font-bold">// 1. Android APK mit Gradle bauen (im Ordner /android):</span>
+                <pre className="text-slate-300 mt-1">
+{`# 1. Web-Assets kompilieren & synchronisieren
+npm run build
+npx cap sync android
+
+# 2. Debug-APK direkt erzeugen (ohne Android Studio)
+cd android
+./gradlew assembleDebug
+
+# Ausgabe: android/app/build/outputs/apk/debug/app-debug.apk`}
+                </pre>
+              </div>
+
+              <div>
+                <span className="text-sky-400 font-bold">// 2. capacitor.config.ts (Native Konfiguration)</span>
+                <pre className="text-slate-300 mt-1">
+{`const config: CapacitorConfig = {
+  appId: 'app.bloodpressure.mobile',
+  appName: 'BloodPressure',
+  webDir: 'dist',
+  plugins: {
+    Camera: { presentationStyle: 'fullscreen' },
+    SplashScreen: { launchShowDuration: 1500, backgroundColor: '#0284c7' }
+  }
+};`}
+                </pre>
+              </div>
+
+              <div>
+                <span className="text-sky-400 font-bold">// 3. AndroidManifest.xml (Kamera- & Speicherrechte)</span>
+                <pre className="text-slate-300 mt-1">
+{`<uses-permission android:name="android.permission.CAMERA" />
+<uses-feature android:name="android.hardware.camera" android:required="false" />
+<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />`}
+                </pre>
+              </div>
+
+              <div>
+                <span className="text-amber-400 font-bold">// 4. Native Room SQLite Entity (Kotlin Referenz)</span>
                 <pre className="text-slate-300 mt-1">
 {`@Entity(tableName = "measurements")
 data class MeasurementEntity(
@@ -610,38 +653,6 @@ data class MeasurementEntity(
     val notes: String? = null,
     val source: String // "manual" or "camera_ocr"
 )`}
-                </pre>
-              </div>
-
-              <div>
-                <span className="text-sky-400 font-bold">// BloodPressureDao.kt (Room DAO)</span>
-                <pre className="text-slate-300 mt-1">
-{`@Dao
-interface BloodPressureDao {
-    @Query("SELECT * FROM measurements WHERE profileId = :profileId ORDER BY timestamp DESC")
-    fun getAll(profileId: Long): Flow<List<MeasurementEntity>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(measurement: MeasurementEntity): Long
-
-    @Delete
-    suspend fun delete(measurement: MeasurementEntity)
-}`}
-                </pre>
-              </div>
-
-              <div>
-                <span className="text-sky-400 font-bold">// CameraX & Local MLKit / 7-Segment OCR Analyzer</span>
-                <pre className="text-slate-300 mt-1">
-{`class BloodPressureDisplayAnalyzer(
-    private val onResult: (sys: Int, dia: Int, pulse: Int) -> Unit
-) : ImageAnalysis.Analyzer {
-    override fun analyze(imageProxy: ImageProxy) {
-        // Local on-device 7-segment / LCD display analysis
-        // No internet access required
-        imageProxy.close()
-    }
-}`}
                 </pre>
               </div>
             </div>

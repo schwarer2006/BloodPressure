@@ -1,0 +1,23 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'app.bloodpressure.mobile',
+  appName: 'BloodPressure',
+  webDir: 'dist',
+  server: {
+    androidScheme: 'https',
+    cleartext: false,
+  },
+  plugins: {
+    Camera: {
+      presentationStyle: 'fullscreen',
+    },
+    SplashScreen: {
+      launchShowDuration: 1500,
+      backgroundColor: '#0284c7',
+      showSpinner: false,
+    },
+  },
+};
+
+export default config;

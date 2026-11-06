@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Heart,
   Plus,
@@ -11,12 +11,16 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Minus,
-  Sparkles,
   Info,
   Sun,
   Moon,
+  Calendar,
+  Activity,
+  Layers,
+  ScatterChart,
+  BarChart2,
 } from 'lucide-react';
-import { Measurement, UserProfile } from '../types/bloodPressure';
+import { Measurement, UserProfile, TimeframeFilter } from '../types/bloodPressure';
 import {
   classifyBloodPressure,
   calculateStats,
@@ -26,6 +30,9 @@ import {
   formatPostureDe,
 } from '../services/bloodPressureUtils';
 import { BloodPressureChart } from './BloodPressureChart';
+import { CalendarHeatmap } from './CalendarHeatmap';
+import { BloodPressureScatterplot } from './BloodPressureScatterplot';
+import { BloodPressureDistribution } from './BloodPressureDistribution';
 
 interface DashboardViewProps {
   measurements: Measurement[];
@@ -42,39 +49,44 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigateToHistory,
   onLoadDemoData,
 }) => {
-  const [chartRange, setChartRange] = useState<'7days' | '30days' | 'all'>('30days');
+  const [selectedRange, setSelectedRange] = useState<TimeframeFilter>('30days');
   const [showPulseOnChart, setShowPulseOnChart] = useState(false);
+  const [showMovingAverage, setShowMovingAverage] = useState(false);
+  const [activeAnalysisView, setActiveAnalysisView] = useState<'chart' | 'heatmap' | 'scatter' | 'dist'>('chart');
 
   // Latest measurement
   const latest = measurements.length > 0 ? measurements[0] : null;
   const latestCategory = latest ? classifyBloodPressure(latest.systolic, latest.diastolic) : null;
 
-  // 7-day measurements
+  // Timeframe calculation
   const now = new Date();
-  const ms7DaysAgo = now.getTime() - 7 * 24 * 60 * 60 * 1000;
-  const ms30DaysAgo = now.getTime() - 30 * 24 * 60 * 60 * 1000;
+  const rangeDays = useMemo(() => {
+    switch (selectedRange) {
+      case '7days':
+        return 7;
+      case '14days':
+        return 14;
+      case '30days':
+        return 30;
+      case '90days':
+        return 90;
+      default:
+        return 30;
+    }
+  }, [selectedRange]);
 
-  const measurements7d = measurements.filter(
-    (m) => new Date(m.timestamp).getTime() >= ms7DaysAgo
-  );
-  const measurements30d = measurements.filter(
-    (m) => new Date(m.timestamp).getTime() >= ms30DaysAgo
-  );
+  const filteredMeasurements = useMemo(() => {
+    if (selectedRange === 'all') return measurements;
+    const cutoff = now.getTime() - rangeDays * 86400000;
+    return measurements.filter((m) => new Date(m.timestamp).getTime() >= cutoff);
+  }, [measurements, selectedRange, rangeDays]);
 
-  const stats7d = calculateStats(measurements7d);
-  const stats30d = calculateStats(measurements30d);
-  const statsAll = calculateStats(measurements);
+  // Central statistics calculated with previous period comparison
+  const stats = useMemo(() => {
+    return calculateStats(filteredMeasurements, measurements, rangeDays);
+  }, [filteredMeasurements, measurements, rangeDays]);
 
-  // Filtered measurements for chart
-  const chartMeasurements =
-    chartRange === '7days'
-      ? measurements7d
-      : chartRange === '30days'
-      ? measurements30d
-      : measurements;
-
-  // Trend calculation comparing 7d vs 30d
-  const sysDiff = stats7d.count > 0 && stats30d.count > 0 ? stats7d.avgSys - stats30d.avgSys : 0;
+  const comp = stats.comparison;
 
   return (
     <div className="space-y-4 pb-20 animate-in fade-in duration-200">
@@ -94,16 +106,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Quick Add Button */}
         <button
           onClick={onNavigateToCapture}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-medium text-xs shadow-sm transition-all"
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-95 text-white font-semibold text-xs shadow-sm transition-all"
         >
           <Plus className="w-4 h-4" />
-          <span>Messung</span>
+          <span>Messung erfassen</span>
         </button>
       </div>
 
-      {/* Main Card: Latest Blood Pressure Reading */}
+      {/* Main KPI Card: Latest Blood Pressure Reading */}
       {latest ? (
-        <div className="rounded-3xl p-5 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800/80 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+        <div className="rounded-3xl p-5 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800/80 border border-slate-200 dark:border-slate-800 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Letzte Messung
@@ -144,7 +156,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* WHO Category Assessment Box */}
+          {/* WHO/ESH Category Assessment Box */}
           {latestCategory && (
             <div
               className="mt-3 p-3 rounded-2xl flex items-center justify-between transition-colors"
@@ -168,12 +180,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 className="text-[10px] font-mono px-2 py-0.5 rounded-md font-semibold bg-white/80 shadow-xs"
                 style={{ color: latestCategory.textColor }}
               >
-                WHO-Klasse
+                ESH/WHO
               </span>
             </div>
           )}
 
-          {/* Measurement context: Arm, Posture, Notes */}
+          {/* Context Strip */}
           <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <div className="flex items-center gap-2">
               <span>{formatArmDe(latest.arm)}</span>
@@ -194,10 +206,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              Noch keine Messungen erfasst
+              Noch keine Messungen vorhanden
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs mx-auto">
-              Starten Sie mit Ihrer ersten Blutdruckmessung manuell oder scannen Sie das Display Ihres Messgeräts per Kamera.
+              Erfassen Sie Ihre erste Messung manuell oder nutzen Sie die Kameraerkennung.
             </p>
           </div>
           <div className="flex items-center justify-center gap-2 pt-2">
@@ -217,115 +229,192 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* 7-Tage & 30-Tage Durchschnittswerte */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* 7 Tage Durchschnitt */}
-        <div className="rounded-2xl p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
-            <span className="font-semibold">7-Tage-Schnitt</span>
-            <span className="font-mono text-[10px]">{stats7d.count} Messungen</span>
-          </div>
-          {stats7d.count > 0 ? (
-            <div>
-              <div className="flex items-baseline gap-1 font-mono tabular-nums">
-                <span className="text-2xl font-bold text-slate-900 dark:text-white">
-                  {stats7d.avgSys}
-                </span>
-                <span className="text-slate-400">/</span>
-                <span className="text-xl font-semibold text-slate-700 dark:text-slate-300">
-                  {stats7d.avgDia}
-                </span>
-                <span className="text-[10px] text-slate-500 font-sans">mmHg</span>
-              </div>
-              <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100 dark:border-slate-800 text-[11px]">
-                <span className="text-slate-500">Puls: {stats7d.avgPulse} BPM</span>
-                {sysDiff !== 0 && (
-                  <span
-                    className={`flex items-center gap-0.5 font-medium ${
-                      sysDiff < 0
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-amber-600 dark:text-amber-400'
-                    }`}
-                  >
-                    {sysDiff < 0 ? (
-                      <ArrowDownRight className="w-3.5 h-3.5" />
-                    ) : (
-                      <ArrowUpRight className="w-3.5 h-3.5" />
-                    )}
-                    {Math.abs(sysDiff)} SYS
-                  </span>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="text-xs text-slate-400 mt-2">Keine Werte in 7 Tagen</div>
-          )}
-        </div>
-
-        {/* 30 Tage Durchschnitt */}
-        <div className="rounded-2xl p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
-            <span className="font-semibold">30-Tage-Schnitt</span>
-            <span className="font-mono text-[10px]">{stats30d.count} Messungen</span>
-          </div>
-          {stats30d.count > 0 ? (
-            <div>
-              <div className="flex items-baseline gap-1 font-mono tabular-nums">
-                <span className="text-2xl font-bold text-slate-900 dark:text-white">
-                  {stats30d.avgSys}
-                </span>
-                <span className="text-slate-400">/</span>
-                <span className="text-xl font-semibold text-slate-700 dark:text-slate-300">
-                  {stats30d.avgDia}
-                </span>
-                <span className="text-[10px] text-slate-500 font-sans">mmHg</span>
-              </div>
-              <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-100 dark:border-slate-800 text-[11px]">
-                <span className="text-slate-500">Puls: {stats30d.avgPulse} BPM</span>
-                <span className="text-slate-500">
-                  Druck: {stats30d.avgPulsePressure} mmHg
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="text-xs text-slate-400 mt-2">Keine Werte in 30 Tagen</div>
-          )}
+      {/* Timeframe Filter Bar for Dashboard KPIs & Analytics */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+          Auswertungszeitraum:
+        </span>
+        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+          {[
+            { id: '7days' as TimeframeFilter, label: '7 Tage' },
+            { id: '14days' as TimeframeFilter, label: '14 Tage' },
+            { id: '30days' as TimeframeFilter, label: '30 Tage' },
+            { id: '90days' as TimeframeFilter, label: '90 Tage' },
+            { id: 'all' as TimeframeFilter, label: 'Gesamt' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setSelectedRange(tab.id)}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                selectedRange === tab.id
+                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Morning vs Evening Snapshot */}
-      {(statsAll.morningAvg || statsAll.eveningAvg) && (
-        <div className="rounded-2xl p-3.5 bg-sky-50/60 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/50">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-sky-900 dark:text-sky-300">
-              Tageszeit-Vergleich (Morgen vs. Abend)
+      {/* 4 Professional KPI Cards with Comparison to Previous Period */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {/* KPI 1: Ø Systole */}
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+            Ø Systole (SYS)
+          </div>
+          <div className="mt-1 font-mono tabular-nums">
+            <span className="text-2xl font-black text-slate-900 dark:text-white">
+              {stats.count > 0 ? stats.avgSys : '—'}
             </span>
-            <span className="text-[10px] text-sky-600 dark:text-sky-400 font-medium">
-              WHO-Verlauf
+            <span className="text-[10px] text-slate-400 font-sans ml-1">mmHg</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between text-[11px]">
+            {comp ? (
+              <span
+                className={`flex items-center font-semibold font-mono ${
+                  comp.diffSys < 0
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : comp.diffSys > 0
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-slate-500'
+                }`}
+              >
+                {comp.diffSys > 0 ? `+${comp.diffSys}` : comp.diffSys} mmHg
+                {comp.diffSys < 0 ? (
+                  <ArrowDownRight className="w-3.5 h-3.5 ml-0.5" />
+                ) : comp.diffSys > 0 ? (
+                  <ArrowUpRight className="w-3.5 h-3.5 ml-0.5" />
+                ) : null}
+              </span>
+            ) : (
+              <span className="text-slate-400 text-[10px]">Ziel: &lt;135</span>
+            )}
+            <span className="text-[10px] text-slate-400">Vorperiode</span>
+          </div>
+        </div>
+
+        {/* KPI 2: Ø Diastole */}
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+            Ø Diastole (DIA)
+          </div>
+          <div className="mt-1 font-mono tabular-nums">
+            <span className="text-2xl font-black text-slate-900 dark:text-white">
+              {stats.count > 0 ? stats.avgDia : '—'}
+            </span>
+            <span className="text-[10px] text-slate-400 font-sans ml-1">mmHg</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between text-[11px]">
+            {comp ? (
+              <span
+                className={`flex items-center font-semibold font-mono ${
+                  comp.diffDia < 0
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : comp.diffDia > 0
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-slate-500'
+                }`}
+              >
+                {comp.diffDia > 0 ? `+${comp.diffDia}` : comp.diffDia} mmHg
+                {comp.diffDia < 0 ? (
+                  <ArrowDownRight className="w-3.5 h-3.5 ml-0.5" />
+                ) : comp.diffDia > 0 ? (
+                  <ArrowUpRight className="w-3.5 h-3.5 ml-0.5" />
+                ) : null}
+              </span>
+            ) : (
+              <span className="text-slate-400 text-[10px]">Ziel: &lt;85</span>
+            )}
+            <span className="text-[10px] text-slate-400">Vorperiode</span>
+          </div>
+        </div>
+
+        {/* KPI 3: Ø Puls */}
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+            Ø Puls
+          </div>
+          <div className="mt-1 font-mono tabular-nums">
+            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+              {stats.count > 0 ? stats.avgPulse : '—'}
+            </span>
+            <span className="text-[10px] text-slate-400 font-sans ml-1">BPM</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between text-[11px]">
+            {comp ? (
+              <span className="text-slate-600 dark:text-slate-300 font-mono">
+                {comp.diffPulse > 0 ? `+${comp.diffPulse}` : comp.diffPulse} BPM
+              </span>
+            ) : (
+              <span className="text-slate-400 text-[10px]">Normal: 60–80</span>
+            )}
+            <span className="text-[10px] text-slate-400">Pulsspanne</span>
+          </div>
+        </div>
+
+        {/* KPI 4: Messanzahl */}
+        <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+          <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+            Messanzahl
+          </div>
+          <div className="mt-1 font-mono tabular-nums">
+            <span className="text-2xl font-black text-slate-900 dark:text-white">
+              {stats.count}
+            </span>
+            <span className="text-[10px] text-slate-400 font-sans ml-1">Messungen</span>
+          </div>
+          <div className="mt-1 flex items-center justify-between text-[11px]">
+            {comp ? (
+              <span className="text-slate-500 font-mono text-[10px]">
+                {comp.diffCount >= 0 ? `+${comp.diffCount}` : comp.diffCount} vgl. Vorp.
+              </span>
+            ) : (
+              <span className="text-slate-400 text-[10px]">Im Zeitraum</span>
+            )}
+            <span className="text-[10px] text-sky-600 font-medium">Aktiv</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Morning vs Evening Comparison Card */}
+      {(stats.morningAvg || stats.eveningAvg) && (
+        <div className="rounded-3xl p-4 bg-sky-50/70 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/60 shadow-xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-sky-900 dark:text-sky-300">
+              Morgen- vs. Abendvergleich (Zirkadianes Profil)
+            </span>
+            <span className="text-[10px] text-sky-600 dark:text-sky-400">
+              HBPM-Standard
             </span>
           </div>
+
           <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex items-center gap-2 bg-white/70 dark:bg-slate-900/60 p-2 rounded-xl">
+            <div className="flex items-center gap-2.5 bg-white/80 dark:bg-slate-900/70 p-3 rounded-2xl">
               <Sun className="w-4 h-4 text-amber-500 shrink-0" />
               <div>
-                <div className="text-[10px] text-slate-500">Morgens (05-12h)</div>
-                <div className="font-bold font-mono text-slate-900 dark:text-white">
-                  {statsAll.morningAvg
-                    ? `${statsAll.morningAvg.sys}/${statsAll.morningAvg.dia}`
-                    : '—'}{' '}
-                  <span className="text-[9px] font-normal text-slate-400">mmHg</span>
+                <div className="text-[10px] text-slate-500">Morgens (05:00–11:59 Uhr)</div>
+                <div className="font-bold font-mono text-slate-900 dark:text-white text-base">
+                  {stats.morningAvg ? `${stats.morningAvg.sys}/${stats.morningAvg.dia}` : '—'}
+                  <span className="text-[10px] font-sans text-slate-400 ml-1">mmHg</span>
+                </div>
+                <div className="text-[10px] text-slate-400 font-mono">
+                  {stats.morningAvg ? `${stats.morningAvg.count} Messungen · Puls ${stats.morningAvg.pulse}` : 'Keine'}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 bg-white/70 dark:bg-slate-900/60 p-2 rounded-xl">
+
+            <div className="flex items-center gap-2.5 bg-white/80 dark:bg-slate-900/70 p-3 rounded-2xl">
               <Moon className="w-4 h-4 text-indigo-400 shrink-0" />
               <div>
-                <div className="text-[10px] text-slate-500">Abends (17-24h)</div>
-                <div className="font-bold font-mono text-slate-900 dark:text-white">
-                  {statsAll.eveningAvg
-                    ? `${statsAll.eveningAvg.sys}/${statsAll.eveningAvg.dia}`
-                    : '—'}{' '}
-                  <span className="text-[9px] font-normal text-slate-400">mmHg</span>
+                <div className="text-[10px] text-slate-500">Abends (17:00–23:59 Uhr)</div>
+                <div className="font-bold font-mono text-slate-900 dark:text-white text-base">
+                  {stats.eveningAvg ? `${stats.eveningAvg.sys}/${stats.eveningAvg.dia}` : '—'}
+                  <span className="text-[10px] font-sans text-slate-400 ml-1">mmHg</span>
+                </div>
+                <div className="text-[10px] text-slate-400 font-mono">
+                  {stats.eveningAvg ? `${stats.eveningAvg.count} Messungen · Puls ${stats.eveningAvg.pulse}` : 'Keine'}
                 </div>
               </div>
             </div>
@@ -333,91 +422,134 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* Interactive Chart Section */}
-      <div className="rounded-3xl p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+      {/* Multi-Visualization Card (Time Series, Heatmap, Scatterplot, Distribution) */}
+      <div className="rounded-3xl p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+        {/* Navigation Tabs for Visualization Suite */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Blutdruckverlauf
+              Medizinische Visualisierungen
             </h3>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Systolisch (rot) & Diastolisch (blau) mit Grenzwert 140/90
+              Interaktive Zeitreihen, Kalender-Heatmap, Verteilung und Scatterplot
             </p>
           </div>
 
-          {/* Timeframe Switcher Tabs */}
           <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl self-start sm:self-auto">
             <button
-              onClick={() => setChartRange('7days')}
-              className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${
-                chartRange === '7days'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+              onClick={() => setActiveAnalysisView('chart')}
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                activeAnalysisView === 'chart'
+                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              7 Tage
+              <Activity className="w-3.5 h-3.5" />
+              <span>Zeitreihe</span>
             </button>
+
             <button
-              onClick={() => setChartRange('30days')}
-              className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${
-                chartRange === '30days'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+              onClick={() => setActiveAnalysisView('heatmap')}
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                activeAnalysisView === 'heatmap'
+                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              30 Tage
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Heatmap</span>
             </button>
+
             <button
-              onClick={() => setChartRange('all')}
-              className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors ${
-                chartRange === 'all'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+              onClick={() => setActiveAnalysisView('scatter')}
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                activeAnalysisView === 'scatter'
+                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              Alle
+              <ScatterChart className="w-3.5 h-3.5" />
+              <span>Scatterplot</span>
+            </button>
+
+            <button
+              onClick={() => setActiveAnalysisView('dist')}
+              className={`flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                activeAnalysisView === 'dist'
+                  ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              }`}
+            >
+              <BarChart2 className="w-3.5 h-3.5" />
+              <span>Verteilung</span>
             </button>
           </div>
         </div>
 
-        {/* Pulse Toggle */}
-        <div className="flex items-center justify-end mb-2">
-          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showPulseOnChart}
-              onChange={(e) => setShowPulseOnChart(e.target.checked)}
-              className="rounded text-sky-600 focus:ring-sky-500"
+        {/* View 1: Time Series Chart */}
+        {activeAnalysisView === 'chart' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-end gap-3 text-xs text-slate-600 dark:text-slate-400">
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showMovingAverage}
+                  onChange={(e) => setShowMovingAverage(e.target.checked)}
+                  className="rounded text-sky-600 focus:ring-sky-500"
+                />
+                <span>Gleitender Schnitt (3P)</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showPulseOnChart}
+                  onChange={(e) => setShowPulseOnChart(e.target.checked)}
+                  className="rounded text-sky-600 focus:ring-sky-500"
+                />
+                <span>Puls einblenden</span>
+              </label>
+            </div>
+
+            <BloodPressureChart
+              measurements={filteredMeasurements}
+              height={230}
+              showPulse={showPulseOnChart}
+              showMovingAverage={showMovingAverage}
             />
-            <span>Puls einblenden</span>
-          </label>
-        </div>
+          </div>
+        )}
 
-        <BloodPressureChart
-          measurements={chartMeasurements}
-          height={210}
-          showPulse={showPulseOnChart}
-        />
+        {/* View 2: Calendar Heatmap */}
+        {activeAnalysisView === 'heatmap' && (
+          <CalendarHeatmap
+            measurements={measurements}
+            daysCount={rangeDays}
+          />
+        )}
 
-        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-          <button
-            onClick={onNavigateToHistory}
-            className="text-sky-600 dark:text-sky-400 font-medium hover:underline flex items-center gap-1"
-          >
-            Vollständigen Verlauf ansehen
-            <ArrowUpRight className="w-3.5 h-3.5" />
-          </button>
-          <span className="text-slate-400 text-[11px]">
-            {chartMeasurements.length} Datenpunkte
-          </span>
-        </div>
+        {/* View 3: Scatterplot SYS vs DIA */}
+        {activeAnalysisView === 'scatter' && (
+          <BloodPressureScatterplot
+            measurements={filteredMeasurements}
+            height={280}
+          />
+        )}
+
+        {/* View 4: Histogram Distribution */}
+        {activeAnalysisView === 'dist' && (
+          <BloodPressureDistribution
+            sysBins={stats.sysDistribution}
+            diaBins={stats.diaDistribution}
+            totalCount={stats.count}
+          />
+        )}
       </div>
 
-      {/* Floating Action Hint / Medical Disclaimer */}
+      {/* Medical Disclaimer */}
       <div className="rounded-2xl p-3 bg-slate-100/70 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400">
         <Info className="w-4 h-4 shrink-0 text-slate-400 mt-0.5" />
         <p>
-          Diese App dient der persönlichen Dokumentation für Ihren Arzt. Es werden keine automatischen Diagnosen gestellt.
+          Diese Dokumentation dient der Information bei ärztlichen Konsultationen. Einzelmessungen sind Momentaufnahmen und begründen keine eigenmächtige Therapieanpassung.
         </p>
       </div>
     </div>

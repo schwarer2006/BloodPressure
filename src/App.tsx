@@ -15,6 +15,7 @@ import { ProfileAndSettingsView } from './components/ProfileAndSettingsView';
 import { Measurement, UserProfile } from './types/bloodPressure';
 import { StorageService } from './services/storage';
 import { CheckCircle2 } from 'lucide-react';
+import { OfflineIndicator } from './components/OfflineIndicator';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -162,6 +163,9 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="p-4 flex-1">
+        {/* Offline Connectivity Banner */}
+        <OfflineIndicator />
+
         {/* Floating Toast Notification */}
         {toastMessage && (
           <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 max-w-sm w-[90%] bg-slate-900 text-white dark:bg-sky-600 px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-top-2">
