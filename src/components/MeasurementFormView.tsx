@@ -21,7 +21,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { ArmPosition, BodyPosture, Measurement } from '../types/bloodPressure';
-import { classifyBloodPressure } from '../services/bloodPressureUtils';
+import { classifyBloodPressure, toDateKey } from '../services/bloodPressureUtils';
 import {
   analyzeBloodPressureImage,
   SAMPLE_MONITOR_PRESETS,
@@ -46,7 +46,7 @@ export const MeasurementFormView: React.FC<MeasurementFormViewProps> = ({
   const [systolic, setSystolic] = useState<number>(124);
   const [diastolic, setDiastolic] = useState<number>(82);
   const [pulse, setPulse] = useState<number>(72);
-  const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState<string>(() => toDateKey(new Date()));
   const [time, setTime] = useState<string>(() => {
     const now = new Date();
     return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -55,6 +55,7 @@ export const MeasurementFormView: React.FC<MeasurementFormViewProps> = ({
   const [posture, setPosture] = useState<BodyPosture>('sitting');
   const [notes, setNotes] = useState<string>('');
   const [quickNoteTag, setQuickNoteTag] = useState<string>('');
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Camera & OCR State
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
@@ -203,14 +204,29 @@ export const MeasurementFormView: React.FC<MeasurementFormViewProps> = ({
 
     // Physiological checks
     if (systolic <= diastolic) {
-      alert('Der systolische Blutdruck muss höher sein als der diastolische Blutdruck.');
+      setFormError('Der systolische Blutdruck muss höher sein als der diastolische Blutdruck.');
       return;
     }
 
-    // Combine date and time
-    const dateTimeStr = `${date}T${time}:00`;
-    const timestamp = new Date(dateTimeStr).toISOString();
+    // Construct local date/time cleanly to avoid UTC midnight shift
+    const [yStr, mStr, dStr] = date.split('-');
+    const [hStr, minStr] = time.split(':');
+    const localDate = new Date(
+      Number(yStr),
+      Number(mStr) - 1,
+      Number(dStr),
+      Number(hStr || 0),
+      Number(minStr || 0),
+      0,
+      0
+    );
+    if (Number.isNaN(localDate.getTime())) {
+      setFormError('Bitte ein gültiges Datum und eine gültige Uhrzeit angeben.');
+      return;
+    }
 
+    setFormError(null);
+    const timestamp = localDate.toISOString();
     const finalNotes = [notes.trim(), quickNoteTag].filter(Boolean).join(' · ');
 
     onSaveMeasurement({
@@ -227,7 +243,7 @@ export const MeasurementFormView: React.FC<MeasurementFormViewProps> = ({
   };
 
   return (
-    <div className="space-y-4 pb-20 animate-in fade-in duration-200">
+    <div className="space-y-4 pb-6 animate-in fade-in duration-200 min-w-0">
       {/* Top Header & Mode Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -780,6 +796,14 @@ export const MeasurementFormView: React.FC<MeasurementFormViewProps> = ({
             ))}
           </div>
         </div>
+
+        {/* Inline Form Validation Banner */}
+        {formError && (
+          <div className="p-3 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-xs flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{formError}</span>
+          </div>
+        )}
 
         {/* Submit Actions */}
         <div className="flex items-center gap-3 pt-2">

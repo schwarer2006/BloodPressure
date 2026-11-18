@@ -55,6 +55,7 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
   const [editDia, setEditDia] = useState<number>(80);
   const [editPulse, setEditPulse] = useState<number>(70);
   const [editNotes, setEditNotes] = useState<string>('');
+  const [editError, setEditError] = useState<string | null>(null);
 
   // Delete Confirmation State
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -112,14 +113,20 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
     setEditDia(item.diastolic);
     setEditPulse(item.pulse);
     setEditNotes(item.notes || '');
+    setEditError(null);
   };
 
   const handleSaveEdit = () => {
     if (!editingItem) return;
     if (editSys <= editDia) {
-      alert('Der systolische Blutdruck muss höher sein als der diastolische Blutdruck.');
+      setEditError('Der systolische Blutdruck muss höher sein als der diastolische Blutdruck.');
       return;
     }
+    if (editSys < 50 || editSys > 280 || editDia < 30 || editDia > 200 || editPulse < 30 || editPulse > 240) {
+      setEditError('Bitte geben Sie medizinisch plausible Werte ein.');
+      return;
+    }
+    setEditError(null);
     onUpdateMeasurement({
       ...editingItem,
       systolic: Math.round(editSys),
@@ -131,7 +138,7 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
   };
 
   return (
-    <div className="space-y-4 pb-20 animate-in fade-in duration-200">
+    <div className="space-y-4 pb-6 animate-in fade-in duration-200 min-w-0">
       {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
@@ -145,7 +152,7 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
       </div>
 
       {/* Timeframe Filter Tabs (7-, 14-, 30-, 90-Tage & Jahr) */}
-      <div className="overflow-x-auto pb-1 no-scrollbar">
+      <div className="overflow-x-auto pb-1 no-scrollbar max-w-full">
         <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl w-max">
           {[
             { id: '7days' as TimeframeFilter, label: '7 Tage' },
@@ -537,12 +544,13 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
       {/* EDIT MODAL */}
       {editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl">
+          <div className="w-full max-w-sm max-h-[90dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                 Messung bearbeiten
               </h3>
               <button
+                type="button"
                 onClick={() => setEditingItem(null)}
                 className="text-slate-400 hover:text-slate-600"
               >
@@ -556,7 +564,10 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
                 <input
                   type="number"
                   value={editSys}
-                  onChange={(e) => setEditSys(Number(e.target.value))}
+                  onChange={(e) => {
+                    setEditSys(Number(e.target.value));
+                    setEditError(null);
+                  }}
                   className="w-full px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-center font-mono font-bold text-base"
                 />
               </div>
@@ -565,7 +576,10 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
                 <input
                   type="number"
                   value={editDia}
-                  onChange={(e) => setEditDia(Number(e.target.value))}
+                  onChange={(e) => {
+                    setEditDia(Number(e.target.value));
+                    setEditError(null);
+                  }}
                   className="w-full px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-center font-mono font-bold text-base"
                 />
               </div>
@@ -574,7 +588,10 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
                 <input
                   type="number"
                   value={editPulse}
-                  onChange={(e) => setEditPulse(Number(e.target.value))}
+                  onChange={(e) => {
+                    setEditPulse(Number(e.target.value));
+                    setEditError(null);
+                  }}
                   className="w-full px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-center font-mono font-bold text-base"
                 />
               </div>
@@ -591,6 +608,13 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
                 className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
               />
             </div>
+
+            {editError && (
+              <div className="p-2.5 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{editError}</span>
+              </div>
+            )}
 
             <div className="flex items-center gap-2 pt-2">
               <button
@@ -615,7 +639,7 @@ export const HistoryAndAnalyticsView: React.FC<HistoryAndAnalyticsViewProps> = (
       {/* DELETE CONFIRMATION MODAL */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-3 shadow-2xl">
+          <div className="w-full max-w-sm max-h-[90dvh] overflow-y-auto rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-3 shadow-2xl">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
               Messung löschen?
             </h3>

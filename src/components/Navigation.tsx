@@ -52,7 +52,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }
   return (
     <nav
       aria-label="Hauptnavigation"
-      className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 transition-colors"
+      className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 transition-colors pb-[var(--bp-safe-bottom)] pl-[var(--bp-safe-left)] pr-[var(--bp-safe-right)]"
     >
       <div className="mx-auto max-w-lg px-2">
         <div className="grid grid-cols-5 items-center h-16">
@@ -62,6 +62,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }
 
             return (
               <button
+                type="button"
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
                 className={`flex flex-col items-center justify-center h-full min-h-[44px] transition-all relative ${

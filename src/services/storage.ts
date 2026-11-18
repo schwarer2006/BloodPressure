@@ -3,36 +3,84 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Measurement, UserProfile } from '../types/bloodPressure';
+import { AppMode, Measurement, UserProfile } from '../types/bloodPressure';
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
+  // Production (Betriebsmodus) – backward compatible with v0.1.0
   MEASUREMENTS: 'bp_measurements_v2',
   MEASUREMENTS_LEGACY: 'bp_measurements_v1',
   PROFILES: 'bp_profiles_v1',
   ACTIVE_PROFILE_ID: 'bp_active_profile_id_v1',
+
+  // Demo (strictly isolated namespace)
+  DEMO_MEASUREMENTS: 'bp_demo_measurements_v1',
+  DEMO_PROFILES: 'bp_demo_profiles_v1',
+  DEMO_ACTIVE_PROFILE_ID: 'bp_demo_active_profile_id_v1',
+  DEMO_CLEARED_FLAG: 'bp_demo_cleared_v1',
+
+  // App Mode, Migration & Preferences
+  APP_MODE: 'bp_app_mode_v1',
+  SCHEMA_VERSION: 'bp_schema_version_v1',
   THEME_MODE: 'bp_theme_mode_v1',
   VIEWPORT_SHELL: 'bp_viewport_shell_v1',
 };
+
+const CURRENT_SCHEMA_VERSION = '2';
 
 const DEFAULT_PROFILE: UserProfile = {
   id: 'profile_default',
   name: 'Mein Profil',
   isDefault: true,
-  birthYear: 1968,
-  gender: 'not_specified',
-  heightCm: 175,
-  weightKg: 78,
-  personalNotes: 'Regelmäßige Heimmessung (HBPM) nach ärztlicher Empfehlung.',
   createdAt: new Date().toISOString(),
 };
 
+const DEMO_PROFILE_PRIMARY: UserProfile = {
+  id: 'demo_profile_1',
+  name: 'Max Mustermann (Demo)',
+  isDefault: true,
+  birthYear: 1968,
+  gender: 'male',
+  heightCm: 178,
+  weightKg: 81,
+  personalNotes: 'Synthetisches Demoprofil zur Test- und Funktionsansicht.',
+  createdAt: '2026-10-01T08:00:00.000Z',
+};
+
+const DEMO_PROFILE_SECONDARY: UserProfile = {
+  id: 'demo_profile_2',
+  name: 'Erika Musterfrau (Demo)',
+  isDefault: false,
+  birthYear: 1972,
+  gender: 'female',
+  heightCm: 166,
+  weightKg: 64,
+  personalNotes: 'Zweites synthetisches Demoprofil (optimaler Verlauf).',
+  createdAt: '2026-10-01T08:00:00.000Z',
+};
+
+function getStore(): Storage {
+  return globalThis.localStorage;
+}
+
 /**
- * Creates realistic demo measurements with natural variance, morning and evening sessions.
- * Support count = 10, 30, 50, 200 for testing.
+ * Creates realistic synthetic demo measurements with natural variance, morning and evening sessions.
+ * Used exclusively in Demo Mode or explicit PDF stress tests — never auto-seeded into Production Mode.
  */
-export function generateDemoMeasurements(profileId: string, count = 30): Measurement[] {
+export function generateDemoMeasurements(
+  profileId: string,
+  count = 30,
+  referenceDate: Date = new Date()
+): Measurement[] {
   const list: Measurement[] = [];
-  const now = new Date();
+  const baseDate = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    referenceDate.getDate(),
+    12,
+    0,
+    0,
+    0
+  );
 
   const morningNotes = [
     'Morgens nüchtern vor dem Frühstück',
@@ -50,34 +98,47 @@ export function generateDemoMeasurements(profileId: string, count = 30): Measure
     '',
   ];
 
+  // Deterministic-friendly offset for secondary demo profile
+  const isSecondary = profileId === DEMO_PROFILE_SECONDARY.id;
+  const sysOffset = isSecondary ? -10 : 0;
+  const diaOffset = isSecondary ? -6 : 0;
+
   for (let i = count - 1; i >= 0; i--) {
     const daysAgo = Math.floor(i / 2);
     const isEvening = i % 2 === 1;
 
-    const mDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+    const mDate = new Date(
+      baseDate.getFullYear(),
+      baseDate.getMonth(),
+      baseDate.getDate() - daysAgo
+    );
     if (isEvening) {
-      mDate.setHours(19 + Math.floor(Math.random() * 2), Math.floor(Math.random() * 50), 0);
+      mDate.setHours(19 + (i % 2), (i * 13) % 55, 0, 0);
     } else {
-      mDate.setHours(7 + Math.floor(Math.random() * 2), Math.floor(Math.random() * 50), 0);
+      mDate.setHours(7 + (i % 2), (i * 17) % 55, 0, 0);
     }
 
-    // Natural physiological baseline with sinus variance and occasional spikes
-    const baseSys = 124 + Math.round(Math.sin(daysAgo / 3.5) * 8 + (Math.random() * 10 - 5));
-    const baseDia = 80 + Math.round(Math.sin(daysAgo / 3.5) * 5 + (Math.random() * 8 - 4));
-    const basePulse = 68 + Math.round(Math.random() * 12 - 6);
+    const wave = Math.sin(daysAgo / 3.5);
+    const jitterSys = ((i * 7) % 11) - 5;
+    const jitterDia = ((i * 5) % 9) - 4;
+    const jitterPulse = ((i * 3) % 11) - 5;
+
+    const baseSys = 126 + sysOffset + Math.round(wave * 9 + jitterSys);
+    const baseDia = 81 + diaOffset + Math.round(wave * 5 + jitterDia);
+    const basePulse = 69 + jitterPulse;
 
     const note = isEvening
       ? eveningNotes[i % eveningNotes.length]
       : morningNotes[i % morningNotes.length];
 
     list.push({
-      id: `demo_m_${count}_${i}`,
+      id: `demo_m_${profileId}_${count}_${i}`,
       profileId,
       timestamp: mDate.toISOString(),
       systolic: Math.min(168, Math.max(105, baseSys)),
-      diastolic: Math.min(102, Math.max(68, baseDia)),
-      pulse: Math.min(95, Math.max(58, basePulse)),
-      arm: Math.random() > 0.3 ? 'left' : 'right',
+      diastolic: Math.min(102, Math.max(64, baseDia)),
+      pulse: Math.min(95, Math.max(56, basePulse)),
+      arm: i % 3 === 0 ? 'right' : 'left',
       posture: 'sitting',
       context: 'home',
       notes: note || undefined,
@@ -85,7 +146,6 @@ export function generateDemoMeasurements(profileId: string, count = 30): Measure
     });
   }
 
-  // Sort descending (newest first)
   return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
 
@@ -127,87 +187,273 @@ export interface BackupPayload {
   };
 }
 
+export interface MigrationReport {
+  schemaVersion: string;
+  migratedFromV1: boolean;
+  hadExistingProductionData: boolean;
+  needsInitialModeSelection: boolean;
+  activeMode: AppMode;
+}
+
 /**
- * Persistent Storage Controller
+ * Persistent Storage Controller with strict namespace separation between Production & Demo
  */
 export const StorageService = {
-  // --- Profiles ---
-  getProfiles(): UserProfile[] {
+  // --- Migration & Mode Control (Gate 2) ---
+  hasExistingProductionData(): boolean {
+    const store = getStore();
     try {
-      const raw = localStorage.getItem(STORAGE_KEYS.PROFILES);
+      const profilesRaw = store.getItem(STORAGE_KEYS.PROFILES);
+      const v2Raw = store.getItem(STORAGE_KEYS.MEASUREMENTS);
+      const v1Raw = store.getItem(STORAGE_KEYS.MEASUREMENTS_LEGACY);
+
+      if (v2Raw) {
+        const parsed = JSON.parse(v2Raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return true;
+      }
+      if (v1Raw) {
+        const parsed = JSON.parse(v1Raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return true;
+      }
+      if (profilesRaw) {
+        const parsed = JSON.parse(profilesRaw);
+        if (Array.isArray(parsed) && parsed.length > 0) return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  },
+
+  initializeAndMigrate(): MigrationReport {
+    const store = getStore();
+    let migratedFromV1 = false;
+
+    // 1. Safe, idempotent migration from v1 measurements key to v2 (never deletes v1)
+    const existingV2 = store.getItem(STORAGE_KEYS.MEASUREMENTS);
+    const existingV1 = store.getItem(STORAGE_KEYS.MEASUREMENTS_LEGACY);
+    if (!existingV2 && existingV1) {
+      store.setItem(STORAGE_KEYS.MEASUREMENTS, existingV1);
+      migratedFromV1 = true;
+    }
+
+    const hadExistingProductionData = this.hasExistingProductionData();
+    const savedMode = store.getItem(STORAGE_KEYS.APP_MODE) as AppMode | null;
+
+    let needsInitialModeSelection = false;
+    let activeMode: AppMode = 'production';
+
+    if (savedMode === 'production' || savedMode === 'demo') {
+      activeMode = savedMode;
+    } else if (hadExistingProductionData) {
+      // Existing user upgrading from v0.1.0 -> preserve everything in Production automatically
+      activeMode = 'production';
+      store.setItem(STORAGE_KEYS.APP_MODE, 'production');
+    } else {
+      // Brand new install -> prompt user to pick Betriebsmodus or Demo-Modus
+      needsInitialModeSelection = true;
+      activeMode = 'production';
+    }
+
+    store.setItem(STORAGE_KEYS.SCHEMA_VERSION, CURRENT_SCHEMA_VERSION);
+
+    return {
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      migratedFromV1,
+      hadExistingProductionData,
+      needsInitialModeSelection,
+      activeMode,
+    };
+  },
+
+  hasSelectedInitialMode(): boolean {
+    const saved = getStore().getItem(STORAGE_KEYS.APP_MODE);
+    return saved === 'production' || saved === 'demo';
+  },
+
+  getAppMode(): AppMode {
+    const saved = getStore().getItem(STORAGE_KEYS.APP_MODE);
+    return saved === 'demo' ? 'demo' : 'production';
+  },
+
+  setAppMode(mode: AppMode): void {
+    const store = getStore();
+    store.setItem(STORAGE_KEYS.APP_MODE, mode);
+    if (mode === 'demo') {
+      this.ensureDemoInitialized();
+    }
+  },
+
+  isDemoCleared(): boolean {
+    return getStore().getItem(STORAGE_KEYS.DEMO_CLEARED_FLAG) === 'true';
+  },
+
+  ensureDemoInitialized(): void {
+    const store = getStore();
+    // Ensure demo profiles exist
+    if (!store.getItem(STORAGE_KEYS.DEMO_PROFILES)) {
+      store.setItem(
+        STORAGE_KEYS.DEMO_PROFILES,
+        JSON.stringify([DEMO_PROFILE_PRIMARY, DEMO_PROFILE_SECONDARY])
+      );
+      store.setItem(STORAGE_KEYS.DEMO_ACTIVE_PROFILE_ID, DEMO_PROFILE_PRIMARY.id);
+    }
+
+    // Only generate demo measurements if they haven't been initialized yet AND user hasn't cleared them
+    const existingDemo = store.getItem(STORAGE_KEYS.DEMO_MEASUREMENTS);
+    if (!existingDemo && !this.isDemoCleared()) {
+      const m1 = generateDemoMeasurements(DEMO_PROFILE_PRIMARY.id, 30);
+      const m2 = generateDemoMeasurements(DEMO_PROFILE_SECONDARY.id, 16);
+      store.setItem(STORAGE_KEYS.DEMO_MEASUREMENTS, JSON.stringify([...m1, ...m2]));
+    }
+  },
+
+  // --- Profiles (Strict Namespace Separation) ---
+  getProfiles(modeOverride?: AppMode): UserProfile[] {
+    const store = getStore();
+    const mode = modeOverride ?? this.getAppMode();
+
+    if (mode === 'demo') {
+      try {
+        const raw = store.getItem(STORAGE_KEYS.DEMO_PROFILES);
+        if (!raw) {
+          const initial = [DEMO_PROFILE_PRIMARY, DEMO_PROFILE_SECONDARY];
+          store.setItem(STORAGE_KEYS.DEMO_PROFILES, JSON.stringify(initial));
+          return initial;
+        }
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) && parsed.length > 0
+          ? parsed
+          : [DEMO_PROFILE_PRIMARY, DEMO_PROFILE_SECONDARY];
+      } catch {
+        return [DEMO_PROFILE_PRIMARY, DEMO_PROFILE_SECONDARY];
+      }
+    }
+
+    // Production mode
+    try {
+      const raw = store.getItem(STORAGE_KEYS.PROFILES);
       if (!raw) {
-        const initial = [DEFAULT_PROFILE];
-        localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(initial));
+        const initial = [{ ...DEFAULT_PROFILE, createdAt: new Date().toISOString() }];
+        store.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(initial));
         return initial;
       }
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEFAULT_PROFILE];
     } catch {
       return [DEFAULT_PROFILE];
     }
   },
 
-  getActiveProfileId(): string {
+  getActiveProfileId(modeOverride?: AppMode): string {
+    const store = getStore();
+    const mode = modeOverride ?? this.getAppMode();
+    const key =
+      mode === 'demo'
+        ? STORAGE_KEYS.DEMO_ACTIVE_PROFILE_ID
+        : STORAGE_KEYS.ACTIVE_PROFILE_ID;
+    const profiles = this.getProfiles(mode);
+
     try {
-      const id = localStorage.getItem(STORAGE_KEYS.ACTIVE_PROFILE_ID);
-      if (id) return id;
-      const profiles = this.getProfiles();
-      const defaultId = profiles[0]?.id || DEFAULT_PROFILE.id;
-      localStorage.setItem(STORAGE_KEYS.ACTIVE_PROFILE_ID, defaultId);
-      return defaultId;
+      const id = store.getItem(key);
+      if (id && profiles.some((p) => p.id === id)) {
+        return id;
+      }
+      const fallbackId = profiles[0]?.id || (mode === 'demo' ? DEMO_PROFILE_PRIMARY.id : DEFAULT_PROFILE.id);
+      store.setItem(key, fallbackId);
+      return fallbackId;
     } catch {
-      return DEFAULT_PROFILE.id;
+      return profiles[0]?.id || DEFAULT_PROFILE.id;
     }
   },
 
-  setActiveProfileId(profileId: string): void {
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_PROFILE_ID, profileId);
+  setActiveProfileId(profileId: string, modeOverride?: AppMode): void {
+    const store = getStore();
+    const mode = modeOverride ?? this.getAppMode();
+    const key =
+      mode === 'demo'
+        ? STORAGE_KEYS.DEMO_ACTIVE_PROFILE_ID
+        : STORAGE_KEYS.ACTIVE_PROFILE_ID;
+    const profiles = this.getProfiles(mode);
+    if (profiles.some((p) => p.id === profileId)) {
+      store.setItem(key, profileId);
+    }
   },
 
-  saveProfile(profile: UserProfile): void {
-    const list = this.getProfiles();
+  saveProfile(profile: UserProfile, modeOverride?: AppMode): void {
+    const store = getStore();
+    const mode = modeOverride ?? this.getAppMode();
+    const key = mode === 'demo' ? STORAGE_KEYS.DEMO_PROFILES : STORAGE_KEYS.PROFILES;
+    const list = this.getProfiles(mode);
     const index = list.findIndex((p) => p.id === profile.id);
     if (index >= 0) {
-      list[index] = profile;
+      list[index] = { ...profile };
     } else {
-      list.push(profile);
+      list.push({ ...profile });
     }
-    localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(list));
+    store.setItem(key, JSON.stringify(list));
   },
 
-  deleteProfile(profileId: string): void {
-    let list = this.getProfiles();
+  createProfile(name: string, modeOverride?: AppMode): UserProfile {
+    const mode = modeOverride ?? this.getAppMode();
+    const prefix = mode === 'demo' ? 'demo_profile_' : 'profile_';
+    const newProfile: UserProfile = {
+      id: `${prefix}${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      name: name.trim(),
+      isDefault: false,
+      createdAt: new Date().toISOString(),
+    };
+    this.saveProfile(newProfile, mode);
+    this.setActiveProfileId(newProfile.id, mode);
+    return newProfile;
+  },
+
+  deleteProfile(profileId: string, modeOverride?: AppMode): void {
+    const store = getStore();
+    const mode = modeOverride ?? this.getAppMode();
+    const profileKey = mode === 'demo' ? STORAGE_KEYS.DEMO_PROFILES : STORAGE_KEYS.PROFILES;
+    const measKey = mode === 'demo' ? STORAGE_KEYS.DEMO_MEASUREMENTS : STORAGE_KEYS.MEASUREMENTS;
+
+    let list = this.getProfiles(mode);
     if (list.length <= 1) return;
     list = list.filter((p) => p.id !== profileId);
-    localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(list));
+    store.setItem(profileKey, JSON.stringify(list));
 
-    const measurements = this.getAllMeasurements().filter((m) => m.profileId !== profileId);
-    localStorage.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(measurements));
-    if (this.getActiveProfileId() === profileId) {
-      this.setActiveProfileId(list[0].id);
+    const measurements = this.getAllMeasurements(mode).filter((m) => m.profileId !== profileId);
+    store.setItem(measKey, JSON.stringify(measurements));
+
+    if (this.getActiveProfileId(mode) === profileId) {
+      this.setActiveProfileId(list[0].id, mode);
     }
   },
 
-  // --- Measurements ---
-  getAllMeasurements(): Measurement[] {
+  // --- Measurements (Strict Namespace & Profile Isolation) ---
+  getAllMeasurements(modeOverride?: AppMode): Measurement[] {
+    const store = getStore();
+    const mode = modeOverride ?? this.getAppMode();
+
+    if (mode === 'demo') {
+      this.ensureDemoInitialized();
+      try {
+        const raw = store.getItem(STORAGE_KEYS.DEMO_MEASUREMENTS);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    // Production mode: NEVER auto-generate synthetic demo measurements!
     try {
-      // Check v2 key first
-      let raw = localStorage.getItem(STORAGE_KEYS.MEASUREMENTS);
+      let raw = store.getItem(STORAGE_KEYS.MEASUREMENTS);
       if (!raw) {
-        // Fallback / migration from v1 key
-        raw = localStorage.getItem(STORAGE_KEYS.MEASUREMENTS_LEGACY);
+        raw = store.getItem(STORAGE_KEYS.MEASUREMENTS_LEGACY);
         if (raw) {
-          localStorage.setItem(STORAGE_KEYS.MEASUREMENTS, raw);
+          store.setItem(STORAGE_KEYS.MEASUREMENTS, raw);
         }
       }
-
-      if (!raw) {
-        // Seed default profile with initial 30 demo entries
-        const defaultProfileId = this.getActiveProfileId();
-        const demo = generateDemoMeasurements(defaultProfileId, 30);
-        localStorage.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(demo));
-        return demo;
-      }
-
+      if (!raw) return [];
       const parsed = JSON.parse(raw);
       return Array.isArray(parsed) ? parsed : [];
     } catch {
@@ -215,78 +461,129 @@ export const StorageService = {
     }
   },
 
-  getMeasurementsForActiveProfile(): Measurement[] {
-    const activeId = this.getActiveProfileId();
-    const all = this.getAllMeasurements();
-    return all
-      .filter((m) => m.profileId === activeId)
+  getMeasurementsForProfile(profileId: string, modeOverride?: AppMode): Measurement[] {
+    const mode = modeOverride ?? this.getAppMode();
+    return this.getAllMeasurements(mode)
+      .filter((m) => m.profileId === profileId)
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   },
 
-  addMeasurement(m: Omit<Measurement, 'id' | 'profileId'>): Measurement {
-    const all = this.getAllMeasurements();
+  getMeasurementsForActiveProfile(modeOverride?: AppMode): Measurement[] {
+    const mode = modeOverride ?? this.getAppMode();
+    const activeId = this.getActiveProfileId(mode);
+    return this.getMeasurementsForProfile(activeId, mode);
+  },
+
+  addMeasurement(
+    m: Omit<Measurement, 'id' | 'profileId'>,
+    modeOverride?: AppMode
+  ): Measurement {
+    const store = getStore();
+    const mode = modeOverride ?? this.getAppMode();
+    const measKey = mode === 'demo' ? STORAGE_KEYS.DEMO_MEASUREMENTS : STORAGE_KEYS.MEASUREMENTS;
+    const activeProfileId = this.getActiveProfileId(mode);
+
+    const all = this.getAllMeasurements(mode);
     const newMeasurement: Measurement = {
       ...m,
-      id: 'm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-      profileId: this.getActiveProfileId(),
+      id: `${mode === 'demo' ? 'dm_' : 'm_'}${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      profileId: activeProfileId,
     };
     all.unshift(newMeasurement);
-    localStorage.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(all));
+    store.setItem(measKey, JSON.stringify(all));
     return newMeasurement;
   },
 
-  updateMeasurement(updated: Measurement): void {
-    const all = this.getAllMeasurements();
+  updateMeasurement(updated: Measurement, modeOverride?: AppMode): void {
+    const store = getStore();
+    const mode = modeOverride ?? this.getAppMode();
+    const measKey = mode === 'demo' ? STORAGE_KEYS.DEMO_MEASUREMENTS : STORAGE_KEYS.MEASUREMENTS;
+    const all = this.getAllMeasurements(mode);
     const idx = all.findIndex((m) => m.id === updated.id);
     if (idx >= 0) {
       all[idx] = updated;
-      localStorage.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(all));
+      store.setItem(measKey, JSON.stringify(all));
     }
   },
 
-  deleteMeasurement(id: string): void {
-    const all = this.getAllMeasurements().filter((m) => m.id !== id);
-    localStorage.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(all));
+  deleteMeasurement(id: string, modeOverride?: AppMode): void {
+    const store = getStore();
+    const mode = modeOverride ?? this.getAppMode();
+    const measKey = mode === 'demo' ? STORAGE_KEYS.DEMO_MEASUREMENTS : STORAGE_KEYS.MEASUREMENTS;
+    const all = this.getAllMeasurements(mode).filter((m) => m.id !== id);
+    store.setItem(measKey, JSON.stringify(all));
   },
 
-  clearAllDataForActiveProfile(): void {
-    const activeId = this.getActiveProfileId();
-    const rest = this.getAllMeasurements().filter((m) => m.profileId !== activeId);
-    localStorage.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(rest));
+  clearAllDataForActiveProfile(modeOverride?: AppMode): void {
+    const store = getStore();
+    const mode = modeOverride ?? this.getAppMode();
+    const measKey = mode === 'demo' ? STORAGE_KEYS.DEMO_MEASUREMENTS : STORAGE_KEYS.MEASUREMENTS;
+    const activeId = this.getActiveProfileId(mode);
+    const rest = this.getAllMeasurements(mode).filter((m) => m.profileId !== activeId);
+    store.setItem(measKey, JSON.stringify(rest));
   },
 
-  loadDemoData(count = 30): void {
-    const activeId = this.getActiveProfileId();
-    const rest = this.getAllMeasurements().filter((m) => m.profileId !== activeId);
-    const demo = generateDemoMeasurements(activeId, count);
-    localStorage.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify([...demo, ...rest]));
+  // --- Demo Data Lifecycle (Gate 2.6: isolated from Production & persistent deletion) ---
+  clearDemoData(): void {
+    const store = getStore();
+    store.setItem(STORAGE_KEYS.DEMO_MEASUREMENTS, JSON.stringify([]));
+    store.setItem(STORAGE_KEYS.DEMO_CLEARED_FLAG, 'true');
+  },
+
+  resetDemoData(count = 30): void {
+    const store = getStore();
+    store.removeItem(STORAGE_KEYS.DEMO_CLEARED_FLAG);
+    const profiles = this.getProfiles('demo');
+    const primaryId = profiles[0]?.id || DEMO_PROFILE_PRIMARY.id;
+    const secondaryId = profiles[1]?.id;
+
+    const demoPrimary = generateDemoMeasurements(primaryId, count);
+    const demoSecondary = secondaryId ? generateDemoMeasurements(secondaryId, Math.max(10, Math.round(count / 2))) : [];
+    store.setItem(
+      STORAGE_KEYS.DEMO_MEASUREMENTS,
+      JSON.stringify([...demoPrimary, ...demoSecondary])
+    );
+  },
+
+  // Helper for Gate 2.5: detect legacy measurements in Production that carry source === 'demo' from v0.1.0 auto-seed
+  getLegacyDemoSourceCountInProduction(): number {
+    return this.getAllMeasurements('production').filter((m) => m.source === 'demo').length;
+  },
+
+  removeLegacyDemoSourceFromProduction(): number {
+    const store = getStore();
+    const all = this.getAllMeasurements('production');
+    const kept = all.filter((m) => m.source !== 'demo');
+    const removed = all.length - kept.length;
+    store.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(kept));
+    return removed;
   },
 
   // --- Theme & Viewport Mode ---
   getThemeMode(): 'light' | 'dark' | 'system' {
-    return (localStorage.getItem(STORAGE_KEYS.THEME_MODE) as 'light' | 'dark' | 'system') || 'system';
+    return (getStore().getItem(STORAGE_KEYS.THEME_MODE) as 'light' | 'dark' | 'system') || 'system';
   },
 
   setThemeMode(mode: 'light' | 'dark' | 'system'): void {
-    localStorage.setItem(STORAGE_KEYS.THEME_MODE, mode);
+    getStore().setItem(STORAGE_KEYS.THEME_MODE, mode);
   },
 
   getViewportShell(): 'android_phone' | 'responsive' {
-    return (localStorage.getItem(STORAGE_KEYS.VIEWPORT_SHELL) as 'android_phone' | 'responsive') || 'android_phone';
+    return (getStore().getItem(STORAGE_KEYS.VIEWPORT_SHELL) as 'android_phone' | 'responsive') || 'responsive';
   },
 
   setViewportShell(shell: 'android_phone' | 'responsive'): void {
-    localStorage.setItem(STORAGE_KEYS.VIEWPORT_SHELL, shell);
+    getStore().setItem(STORAGE_KEYS.VIEWPORT_SHELL, shell);
   },
 
-  // --- Backup & Restore (Version 2 with validation & optional encryption) ---
+  // --- Backup & Restore (Always scoped to Production data to avoid Demo contamination) ---
   exportBackupJson(): string {
     const backup: BackupPayload = {
       version: 2,
       appName: 'BloodPressure – Intelligenter Blutdruckmanager',
       exportDate: new Date().toISOString(),
-      profiles: this.getProfiles(),
-      measurements: this.getAllMeasurements(),
+      profiles: this.getProfiles('production'),
+      measurements: this.getAllMeasurements('production'),
       settings: {
         themeMode: this.getThemeMode(),
         viewportShell: this.getViewportShell(),
@@ -369,36 +666,37 @@ export const StorageService = {
     payload: BackupPayload,
     strategy: 'merge' | 'overwrite' = 'merge'
   ): { success: boolean; message: string; count: number } {
+    const store = getStore();
     try {
       if (!payload || !Array.isArray(payload.measurements)) {
         return { success: false, message: 'Ungültige Messdaten im Backup.', count: 0 };
       }
 
-      // Restore Profiles
+      // Always restore into Production namespace
       if (Array.isArray(payload.profiles) && payload.profiles.length > 0) {
         if (strategy === 'overwrite') {
-          localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(payload.profiles));
+          store.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(payload.profiles));
+          store.setItem(STORAGE_KEYS.ACTIVE_PROFILE_ID, payload.profiles[0].id);
         } else {
-          const currentProfiles = this.getProfiles();
+          const currentProfiles = this.getProfiles('production');
           for (const p of payload.profiles) {
             if (!currentProfiles.some((existing) => existing.id === p.id)) {
               currentProfiles.push(p);
             }
           }
-          localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(currentProfiles));
+          store.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(currentProfiles));
         }
       }
 
-      // Restore Measurements
       if (strategy === 'overwrite') {
-        localStorage.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(payload.measurements));
+        store.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(payload.measurements));
         return {
           success: true,
           message: `${payload.measurements.length} Messungen vollständig wiederhergestellt.`,
           count: payload.measurements.length,
         };
       } else {
-        const current = this.getAllMeasurements();
+        const current = this.getAllMeasurements('production');
         const existingIds = new Set(current.map((m) => m.id));
         let addedCount = 0;
         for (const m of payload.measurements) {
@@ -408,7 +706,7 @@ export const StorageService = {
             addedCount++;
           }
         }
-        localStorage.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(current));
+        store.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(current));
         return {
           success: true,
           message: `${addedCount} neue Messungen zusammengeführt (${current.length} insgesamt).`,

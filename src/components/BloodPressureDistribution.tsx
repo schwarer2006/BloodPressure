@@ -50,7 +50,7 @@ export const BloodPressureDistribution: React.FC<BloodPressureDistributionProps>
   return (
     <div className="space-y-3">
       {/* Tab Switcher */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
           Klassen-Häufigkeit ({totalCount} Messungen)
         </span>

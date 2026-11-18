@@ -12,6 +12,10 @@ import {
   HistogramBin,
   PeriodComparison,
   TrendAnalysis,
+  CalendarDayCell,
+  CalendarWeek,
+  HeatmapMetric,
+  PulseScaleConfig,
 } from '../types/bloodPressure';
 
 /**
@@ -61,7 +65,7 @@ export const WHO_CATEGORIES: Record<WhoCategory, CategoryInfo> = {
     textColor: '#b45309',
     descriptionDe: 'Grenzwertig normal. Lebensstilmaßnahmen und Kontrollmessungen empfohlen.',
     guidelineBasis: 'ESH/ESC 2023 & WHO Leitlinie',
-    thresholdHome: '130–134 / 84 mmHg (HBPM)',
+    thresholdHome: '130–134 / < 85 mmHg (HBPM)',
     thresholdOffice: '130–139 / 85–89 mmHg (Praxis)',
     rangeSys: '130 – 139',
     rangeDia: '85 – 89',
@@ -150,7 +154,7 @@ export function classifyBloodPressure(sys: number, dia: number, isHomeMeasuremen
     return WHO_CATEGORIES.hypertension_grade_1;
   }
   if (isHomeMeasurement) {
-    if ((sys >= 130 && sys < 135) || (dia >= 80 && dia < 85)) {
+    if (sys >= 130 && sys < 135) {
       return WHO_CATEGORIES.high_normal;
     }
   } else {
@@ -186,13 +190,298 @@ export function getTimeOfDay(date: Date): 'morning' | 'day' | 'evening' | 'night
 }
 
 /**
- * Formats a Date object to YYYY-MM-DD
+ * Formats a local Date object to YYYY-MM-DD without UTC conversion
  */
 export function toDateKey(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+/**
+ * Parses YYYY-MM-DD into a local Date at midnight (00:00:00)
+ */
+export function parseLocalDateKey(dateKey: string): Date {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0);
+}
+
+/**
+ * Monday-based weekday index:
+ * Mo = 0, Di = 1, Mi = 2, Do = 3, Fr = 4, Sa = 5, So = 6
+ */
+export function getMondayWeekdayIndex(date: Date): number {
+  return (date.getDay() + 6) % 7;
+}
+
+/**
+ * Computes ISO-8601 calendar week & week-year from a local Date.
+ * Uses Date.UTC on extracted local (Y, M, D) solely to avoid DST hour-drift.
+ */
+export function getISOWeek(date: Date): { week: number; year: number } {
+  const localMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayNum = getMondayWeekdayIndex(localMidnight); // Mo=0..So=6
+  const thursday = new Date(
+    localMidnight.getFullYear(),
+    localMidnight.getMonth(),
+    localMidnight.getDate() + (3 - dayNum)
+  );
+  const weekYear = thursday.getFullYear();
+  const jan4 = new Date(weekYear, 0, 4);
+  const jan4DayNum = getMondayWeekdayIndex(jan4);
+  const week1Monday = new Date(weekYear, 0, 4 - jan4DayNum);
+
+  const utcThursday = Date.UTC(thursday.getFullYear(), thursday.getMonth(), thursday.getDate());
+  const utcWeek1Monday = Date.UTC(
+    week1Monday.getFullYear(),
+    week1Monday.getMonth(),
+    week1Monday.getDate()
+  );
+  const diffDays = Math.round((utcThursday - utcWeek1Monday) / 86400000);
+  return {
+    week: 1 + Math.floor(diffDays / 7),
+    year: weekYear,
+  };
+}
+
+export const DEFAULT_PULSE_SCALE: PulseScaleConfig = {
+  lowMax: 60,
+  normalMax: 80,
+  elevatedMax: 95,
+};
+
+/**
+ * Shared color classification for SYS, DIA, and configurable Pulse heatmaps
+ */
+export function getHeatmapColorForValue(
+  val: number,
+  metricType: HeatmapMetric,
+  pulseScale: PulseScaleConfig = DEFAULT_PULSE_SCALE
+): {
+  bgClass: string;
+  textClass: string;
+  rgb: [number, number, number];
+  textRgb: [number, number, number];
+  label: string;
+} {
+  if (metricType === 'systolic') {
+    if (val < 120) {
+      return {
+        bgClass: 'bg-emerald-500',
+        textClass: 'text-white',
+        rgb: [16, 185, 129],
+        textRgb: [255, 255, 255],
+        label: '< 120 mmHg',
+      };
+    }
+    if (val < 130) {
+      return {
+        bgClass: 'bg-sky-500',
+        textClass: 'text-white',
+        rgb: [14, 165, 233],
+        textRgb: [255, 255, 255],
+        label: '120–129 mmHg',
+      };
+    }
+    if (val < 135) {
+      return {
+        bgClass: 'bg-amber-400',
+        textClass: 'text-slate-900',
+        rgb: [245, 158, 11],
+        textRgb: [15, 23, 42],
+        label: '130–134 mmHg',
+      };
+    }
+    if (val < 160) {
+      return {
+        bgClass: 'bg-orange-500',
+        textClass: 'text-white',
+        rgb: [249, 115, 22],
+        textRgb: [255, 255, 255],
+        label: '135–159 mmHg',
+      };
+    }
+    return {
+      bgClass: 'bg-red-600',
+      textClass: 'text-white',
+      rgb: [220, 38, 38],
+      textRgb: [255, 255, 255],
+      label: '≥ 160 mmHg',
+    };
+  }
+
+  if (metricType === 'diastolic') {
+    if (val < 80) {
+      return {
+        bgClass: 'bg-emerald-500',
+        textClass: 'text-white',
+        rgb: [16, 185, 129],
+        textRgb: [255, 255, 255],
+        label: '< 80 mmHg',
+      };
+    }
+    if (val < 85) {
+      return {
+        bgClass: 'bg-sky-500',
+        textClass: 'text-white',
+        rgb: [14, 165, 233],
+        textRgb: [255, 255, 255],
+        label: '80–84 mmHg',
+      };
+    }
+    if (val < 90) {
+      return {
+        bgClass: 'bg-amber-400',
+        textClass: 'text-slate-900',
+        rgb: [245, 158, 11],
+        textRgb: [15, 23, 42],
+        label: '85–89 mmHg',
+      };
+    }
+    if (val < 100) {
+      return {
+        bgClass: 'bg-orange-500',
+        textClass: 'text-white',
+        rgb: [249, 115, 22],
+        textRgb: [255, 255, 255],
+        label: '90–99 mmHg',
+      };
+    }
+    return {
+      bgClass: 'bg-red-600',
+      textClass: 'text-white',
+      rgb: [220, 38, 38],
+      textRgb: [255, 255, 255],
+      label: '≥ 100 mmHg',
+    };
+  }
+
+  // Pulse (configurable exploratory zones, explicitly non-diagnostic)
+  if (val < pulseScale.lowMax) {
+    return {
+      bgClass: 'bg-indigo-500',
+      textClass: 'text-white',
+      rgb: [99, 102, 241],
+      textRgb: [255, 255, 255],
+      label: `< ${pulseScale.lowMax} BPM`,
+    };
+  }
+  if (val <= pulseScale.normalMax) {
+    return {
+      bgClass: 'bg-emerald-500',
+      textClass: 'text-white',
+      rgb: [16, 185, 129],
+      textRgb: [255, 255, 255],
+      label: `${pulseScale.lowMax}–${pulseScale.normalMax} BPM`,
+    };
+  }
+  if (val <= pulseScale.elevatedMax) {
+    return {
+      bgClass: 'bg-amber-400',
+      textClass: 'text-slate-900',
+      rgb: [245, 158, 11],
+      textRgb: [15, 23, 42],
+      label: `${pulseScale.normalMax + 1}–${pulseScale.elevatedMax} BPM`,
+    };
+  }
+  return {
+    bgClass: 'bg-red-600',
+    textClass: 'text-white',
+    rgb: [220, 38, 38],
+    textRgb: [255, 255, 255],
+    label: `> ${pulseScale.elevatedMax} BPM`,
+  };
+}
+
+/**
+ * Central calendar builder used identically by Dashboard CalendarHeatmap and PDF Report.
+ * Ensures every week starts on Monday (0) and ends on Sunday (6), with exact ISO weeks
+ * and local YYYY-MM-DD keys — never shifting the current day to Sunday.
+ */
+export function buildCalendarWeeks(params: {
+  startDate: Date;
+  endDate: Date;
+  dailyMap: Record<string, DayAggregate>;
+  referenceToday?: Date;
+}): CalendarWeek[] {
+  const startLocal = new Date(
+    params.startDate.getFullYear(),
+    params.startDate.getMonth(),
+    params.startDate.getDate()
+  );
+  const endLocal = new Date(
+    params.endDate.getFullYear(),
+    params.endDate.getMonth(),
+    params.endDate.getDate()
+  );
+
+  const safeStart = startLocal <= endLocal ? startLocal : endLocal;
+  const safeEnd = startLocal <= endLocal ? endLocal : startLocal;
+
+  const todayRef = params.referenceToday
+    ? new Date(
+        params.referenceToday.getFullYear(),
+        params.referenceToday.getMonth(),
+        params.referenceToday.getDate()
+      )
+    : new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  const todayKey = toDateKey(todayRef);
+
+  // Align start backwards to Monday (0)
+  const startWeekday = getMondayWeekdayIndex(safeStart);
+  const gridStart = new Date(
+    safeStart.getFullYear(),
+    safeStart.getMonth(),
+    safeStart.getDate() - startWeekday
+  );
+
+  // Align end forwards to Sunday (6)
+  const endWeekday = getMondayWeekdayIndex(safeEnd);
+  const gridEnd = new Date(
+    safeEnd.getFullYear(),
+    safeEnd.getMonth(),
+    safeEnd.getDate() + (6 - endWeekday)
+  );
+
+  const weeks: CalendarWeek[] = [];
+  let currentDays: CalendarDayCell[] = [];
+
+  let cursor = new Date(gridStart);
+  let safetyCounter = 0;
+
+  while (cursor <= gridEnd && safetyCounter < 400) {
+    const key = toDateKey(cursor);
+    const weekdayIndex = getMondayWeekdayIndex(cursor);
+    const isInRange = cursor >= safeStart && cursor <= safeEnd;
+    const isFuture = cursor > todayRef;
+
+    currentDays.push({
+      date: new Date(cursor),
+      dateKey: key,
+      dayOfMonth: cursor.getDate(),
+      weekdayIndex,
+      isInRange,
+      isFuture,
+      isToday: key === todayKey,
+      aggregate: params.dailyMap[key],
+    });
+
+    if (currentDays.length === 7) {
+      const iso = getISOWeek(currentDays[3].date); // Thursday uniquely defines ISO week
+      weeks.push({
+        isoWeek: iso.week,
+        isoYear: iso.year,
+        days: currentDays,
+      });
+      currentDays = [];
+    }
+
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1);
+    safetyCounter++;
+  }
+
+  return weeks;
 }
 
 /**

@@ -6,12 +6,39 @@
   :root {
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
+    /* Capacitor 8 SystemBars / Edge-to-Edge safe areas (max prevents double stacking across WebView versions) */
+    --bp-safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+    --bp-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+    --bp-safe-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
+    --bp-safe-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+  }
+
+  html,
+  body {
+    overflow-x: clip;
+    max-width: 100%;
   }
 
   body {
     font-family: var(--font-sans);
     -webkit-tap-highlight-color: transparent;
   }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Material Design 3 and Touch Ripple touches */

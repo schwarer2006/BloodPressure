@@ -126,3 +126,31 @@ export interface BloodPressureStats {
   sysDistribution: HistogramBin[];
   diaDistribution: HistogramBin[];
 }
+
+export type AppMode = 'production' | 'demo';
+
+export type HeatmapMetric = 'systolic' | 'diastolic' | 'pulse';
+
+export interface CalendarDayCell {
+  date: Date;
+  dateKey: string; // Local YYYY-MM-DD
+  dayOfMonth: number;
+  weekdayIndex: number; // 0 = Mo, 1 = Di, 2 = Mi, 3 = Do, 4 = Fr, 5 = Sa, 6 = So
+  isInRange: boolean;
+  isFuture: boolean;
+  isToday: boolean;
+  aggregate?: DayAggregate;
+}
+
+export interface CalendarWeek {
+  isoWeek: number;
+  isoYear: number;
+  days: CalendarDayCell[]; // Always 7 days: Monday (0) .. Sunday (6)
+}
+
+export interface PulseScaleConfig {
+  lowMax: number; // < lowMax -> niedrig (z.B. 60)
+  normalMax: number; // lowMax..normalMax -> ruhig/moderat (z.B. 80)
+  elevatedMax: number; // normalMax+1..elevatedMax -> leicht erhöht (z.B. 95)
+}
+

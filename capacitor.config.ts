@@ -17,6 +17,10 @@ const config: CapacitorConfig = {
       backgroundColor: '#0284c7',
       showSpinner: false,
     },
+    SystemBars: {
+      insetsHandling: 'css',
+      style: 'DEFAULT',
+    },
   },
 };
 

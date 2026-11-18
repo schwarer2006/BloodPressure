@@ -13,7 +13,7 @@ export const OfflineIndicator: React.FC = () => {
   if (isOnline) return null;
 
   return (
-    <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 max-w-sm w-[90%] bg-amber-500 text-slate-950 font-semibold px-4 py-2 rounded-2xl shadow-xl flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-2 border border-amber-400">
+    <div className="fixed top-[calc(3.5rem+var(--bp-safe-top))] left-1/2 -translate-x-1/2 z-50 max-w-sm w-[90%] bg-amber-500 text-slate-950 font-semibold px-4 py-2 rounded-2xl shadow-xl flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-2 border border-amber-400">
       <div className="flex items-center gap-2">
         <WifiOff className="w-4 h-4 text-slate-950 shrink-0" />
         <span>Offline-Modus aktiv</span>
