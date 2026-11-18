@@ -56,7 +56,7 @@ export const BloodPressureChart: React.FC<BloodPressureChartProps> = ({
   }
 
   const paddingLeft = 40;
-  const paddingRight = 16;
+  const paddingRight = 30;
   const paddingTop = 20;
   const paddingBottom = 32;
   const svgWidth = 620;
@@ -91,10 +91,6 @@ export const BloodPressureChart: React.FC<BloodPressureChartProps> = ({
   const diaMaPoints = movingAverages.map((ma, i) => `${getX(i)},${getY(ma.diaMA)}`).join(' ');
 
   // Guideline lines
-  const y140 = getY(140); // Office guideline SYS
-  const y135 = getY(135); // HBPM Home guideline SYS
-  const y90 = getY(90);   // Office guideline DIA
-  const y85 = getY(85);   // HBPM Home guideline DIA
   const y120 = getY(120); // Optimal SYS
   const y80 = getY(80);   // Optimal DIA
 
@@ -105,8 +101,7 @@ export const BloodPressureChart: React.FC<BloodPressureChartProps> = ({
     <div className="relative w-full overflow-hidden select-none">
       <svg
         viewBox={`0 0 ${svgWidth} ${height}`}
-        className="w-full h-auto overflow-visible"
-        style={{ minHeight: `${height}px` }}
+        className="w-full h-auto block"
       >
         <defs>
           <linearGradient id="normalZoneGrad" x1="0" y1="0" x2="0" y2="1">
@@ -125,7 +120,7 @@ export const BloodPressureChart: React.FC<BloodPressureChartProps> = ({
         />
 
         {/* Horizontal grid lines */}
-        {[60, 80, 100, 120, 135, 140, 160, 180].map((val) => {
+        {[60, 80, 85, 100, 120, 135, 140, 160, 180].map((val) => {
           if (val < minY || val > maxY) return null;
           const y = getY(val);
           const isHomeThreshold = val === 135 || val === 85;
@@ -150,10 +145,11 @@ export const BloodPressureChart: React.FC<BloodPressureChartProps> = ({
                 strokeDasharray={isThreshold ? (isHomeThreshold ? '3,3' : '5,3') : '2,2'}
                 strokeWidth={isThreshold ? '1.2' : '0.75'}
               />
+              {/* Place HBPM 135/85 labels on right axis to avoid collision with 140/80 on left */}
               <text
-                x={paddingLeft - 6}
+                x={isHomeThreshold ? svgWidth - paddingRight + 4 : paddingLeft - 6}
                 y={y + 3}
-                textAnchor="end"
+                textAnchor={isHomeThreshold ? 'start' : 'end'}
                 className={`text-[9px] font-mono tabular-nums ${
                   isThreshold
                     ? isHomeThreshold
@@ -247,10 +243,10 @@ export const BloodPressureChart: React.FC<BloodPressureChartProps> = ({
               <circle
                 cx={x}
                 cy={ySys}
-                r={isHovered ? 5.5 : 3}
+                r={isHovered ? 6.5 : 4.2}
                 fill="#ffffff"
                 stroke="#ef4444"
-                strokeWidth={isHovered ? 3 : 1.8}
+                strokeWidth={isHovered ? 3 : 2}
                 className="transition-all duration-150"
               />
 
@@ -258,10 +254,10 @@ export const BloodPressureChart: React.FC<BloodPressureChartProps> = ({
               <circle
                 cx={x}
                 cy={yDia}
-                r={isHovered ? 5.5 : 3}
+                r={isHovered ? 6.5 : 4.2}
                 fill="#ffffff"
                 stroke="#0284c7"
-                strokeWidth={isHovered ? 3 : 1.8}
+                strokeWidth={isHovered ? 3 : 2}
                 className="transition-all duration-150"
               />
 

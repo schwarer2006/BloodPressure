@@ -23,7 +23,7 @@ export default defineConfig(() => {
           name: 'BloodPressure – Intelligenter Blutdruckmanager',
           short_name: 'BloodPress',
           description:
-            'Moderne, sichere und offlinefähige Anwendung zur Erfassung, Analyse und zum PDF-Export von Blutdruckmessungen.',
+            'Offlinefähige Anwendung zur persönlichen Erfassung, Analyse und zum PDF-Export von Blutdruckmessungen.',
           theme_color: '#0284c7',
           background_color: '#0f172a',
           display: 'standalone',
@@ -54,36 +54,6 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-          runtimeCaching: [
-            {
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'google-fonts-cache',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'gstatic-fonts-cache',
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365,
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-          ],
         },
         devOptions: {
           enabled: true,

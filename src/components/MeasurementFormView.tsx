@@ -135,10 +135,12 @@ export const MeasurementFormView: React.FC<MeasurementFormViewProps> = ({
       if (result.displayCropPreview) {
         setCapturedPreview(result.displayCropPreview);
       }
-      // Populate form values
-      setSystolic(result.systolic);
-      setDiastolic(result.diastolic);
-      setPulse(result.pulse);
+      // Populate form values only when OCR confidence & checks succeeded
+      if (!result.isUncertain) {
+        setSystolic(result.systolic);
+        setDiastolic(result.diastolic);
+        setPulse(result.pulse);
+      }
       setOcrConfirmed(false);
       stopCamera();
     } catch (err) {
@@ -163,9 +165,11 @@ export const MeasurementFormView: React.FC<MeasurementFormViewProps> = ({
       img.onload = async () => {
         const result = await analyzeBloodPressureImage(img);
         setOcrResult(result);
-        setSystolic(result.systolic);
-        setDiastolic(result.diastolic);
-        setPulse(result.pulse);
+        if (!result.isUncertain) {
+          setSystolic(result.systolic);
+          setDiastolic(result.diastolic);
+          setPulse(result.pulse);
+        }
         setOcrConfirmed(false);
         setIsAnalyzing(false);
       };
@@ -734,8 +738,8 @@ export const MeasurementFormView: React.FC<MeasurementFormViewProps> = ({
           </div>
 
           {/* Date & Time */}
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <div className="min-w-0">
               <label className="text-xs text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1 mb-1">
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
                 Datum

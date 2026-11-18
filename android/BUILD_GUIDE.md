@@ -1,12 +1,12 @@
-# BloodPressure Android App – Build & Signing Dokumentation (Release v0.1.1)
+# BloodPressure Android App – Build & Signing Dokumentation (Release v0.1.2)
 
 Dieses Android-Projekt basiert auf **Capacitor 8**, **Android Gradle Plugin 8.2+** und dem **React/TypeScript Frontend** von BloodPressure.
 
 ## 1. Projektstruktur & Konfiguration
 
 - **App Name**: `BloodPressure`
-- **Application ID / Package**: `app.bloodpressure.mobile` (unverändert für datenerhaltendes Update über v0.1.0)
-- **Version**: `versionCode 2`, `versionName "0.1.1"`
+- **Application ID / Package**: `app.bloodpressure.mobile` (unverändert für datenerhaltendes Update über v0.1.0/v0.1.1)
+- **Version**: `versionCode 3`, `versionName "0.1.2"`
 - **Capacitor Plugins**:
   - `@capacitor/camera`: Kamera-Erfassung und Foto-Upload
   - `@capacitor/filesystem`: Lokaler Dokumentenzugriff für PDF- und CSV-Exporte
@@ -39,7 +39,7 @@ Dieses Android-Projekt basiert auf **Capacitor 8**, **Android Gradle Plugin 8.2+
 
 ---
 
-## 3. Debug-APK über die Kommandozeile bauen (Release v0.1.1)
+## 3. Debug-APK über die Kommandozeile bauen (Release v0.1.2)
 
 Im Terminal im Stammverzeichnis ausführen:
 ```bash
@@ -52,14 +52,14 @@ Nach erfolgreichem Build liegt die installierbare APK-Datei hier bereit:
 ```
 android/app/build/outputs/apk/debug/app-debug.apk
 ```
-Für die Auslieferung als `BloodPressure-v0.1.1-debug.apk`:
+Für die Auslieferung als `BloodPressure-v0.1.2-debug.apk`:
 ```bash
-cp android/app/build/outputs/apk/debug/app-debug.apk ./BloodPressure-v0.1.1-debug.apk
+cp android/app/build/outputs/apk/debug/app-debug.apk ./BloodPressure-v0.1.2-debug.apk
 ```
 
-Update-Installation über bestehende v0.1.0-Installation auf einem per USB verbundenen Smartphone:
+Update-Installation über bestehende v0.1.0/v0.1.1-Installation auf einem per USB verbundenen Smartphone:
 ```bash
-adb install -r BloodPressure-v0.1.1-debug.apk
+adb install -r BloodPressure-v0.1.2-debug.apk
 ```
 
 ---

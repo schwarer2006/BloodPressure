@@ -61,7 +61,7 @@ export const AndroidHeader: React.FC<AndroidHeaderProps> = ({
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-sans">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Offline & Sicher</span>
+              <span>Offline &amp; Lokal</span>
             </div>
             <Wifi className="w-3.5 h-3.5" />
             <BatteryMedium className="w-4 h-4" />

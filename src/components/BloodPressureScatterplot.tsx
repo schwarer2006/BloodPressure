@@ -32,8 +32,8 @@ export const BloodPressureScatterplot: React.FC<BloodPressureScatterplotProps> =
   }
 
   const paddingLeft = 46;
-  const paddingRight = 20;
-  const paddingTop = 20;
+  const paddingRight = 30;
+  const paddingTop = 24;
   const paddingBottom = 40;
   const svgWidth = 600;
   const chartWidth = svgWidth - paddingLeft - paddingRight;
@@ -70,16 +70,13 @@ export const BloodPressureScatterplot: React.FC<BloodPressureScatterplotProps> =
 
   // Threshold coords
   const x135 = getX(135);
-  const x140 = getX(140);
   const y85 = getY(85);
-  const y90 = getY(90);
 
   return (
     <div className="relative w-full overflow-hidden select-none space-y-2">
       <svg
         viewBox={`0 0 ${svgWidth} ${height}`}
-        className="w-full h-auto overflow-visible"
-        style={{ minHeight: `${height}px` }}
+        className="w-full h-auto block"
       >
         {/* Normal target quadrant (<135 SYS and <85 DIA) */}
         <rect
@@ -114,9 +111,10 @@ export const BloodPressureScatterplot: React.FC<BloodPressureScatterplotProps> =
                 strokeDasharray={isHome || isOffice ? '4,3' : '2,2'}
                 strokeWidth={isHome || isOffice ? '1.2' : '0.75'}
               />
+              {/* Place HBPM 135 at top edge to avoid colliding with 140 at bottom */}
               <text
                 x={x}
-                y={paddingTop + chartHeight + 14}
+                y={isHome ? paddingTop - 6 : paddingTop + chartHeight + 14}
                 textAnchor="middle"
                 className={`text-[9px] font-mono tabular-nums ${
                   isHome ? 'fill-amber-600 font-bold' : isOffice ? 'fill-red-600 font-bold' : 'fill-slate-400'
@@ -151,10 +149,11 @@ export const BloodPressureScatterplot: React.FC<BloodPressureScatterplotProps> =
                 strokeDasharray={isHome || isOffice ? '4,3' : '2,2'}
                 strokeWidth={isHome || isOffice ? '1.2' : '0.75'}
               />
+              {/* Place HBPM 85 on right axis to avoid colliding with 90 on left */}
               <text
-                x={paddingLeft - 6}
+                x={isHome ? svgWidth - paddingRight + 4 : paddingLeft - 6}
                 y={y + 3}
-                textAnchor="end"
+                textAnchor={isHome ? 'start' : 'end'}
                 className={`text-[9px] font-mono tabular-nums ${
                   isHome ? 'fill-amber-600 font-bold' : isOffice ? 'fill-red-600 font-bold' : 'fill-slate-400'
                 }`}
@@ -199,11 +198,11 @@ export const BloodPressureScatterplot: React.FC<BloodPressureScatterplotProps> =
               key={m.id}
               cx={x}
               cy={y}
-              r={isHovered ? 6 : 4}
+              r={isHovered ? 7 : 5}
               fill={color}
-              fillOpacity={0.8}
+              fillOpacity={0.85}
               stroke="#ffffff"
-              strokeWidth={isHovered ? 2.5 : 1.2}
+              strokeWidth={isHovered ? 2.5 : 1.5}
               className="cursor-pointer transition-transform duration-100"
               onMouseEnter={() => setHoveredItem(m)}
               onMouseLeave={() => setHoveredItem(null)}

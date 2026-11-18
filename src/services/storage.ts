@@ -62,6 +62,23 @@ function getStore(): Storage {
   return globalThis.localStorage;
 }
 
+function isValidMeasurement(item: unknown): item is Measurement {
+  if (!item || typeof item !== 'object') return false;
+  const m = item as Record<string, unknown>;
+  if (typeof m.id !== 'string' || !m.id.trim()) return false;
+  if (typeof m.timestamp !== 'string' || Number.isNaN(new Date(m.timestamp).getTime())) return false;
+  if (typeof m.systolic !== 'number' || !Number.isFinite(m.systolic) || m.systolic <= 0 || m.systolic > 350) return false;
+  if (typeof m.diastolic !== 'number' || !Number.isFinite(m.diastolic) || m.diastolic <= 0 || m.diastolic > 250) return false;
+  if (typeof m.pulse !== 'number' || !Number.isFinite(m.pulse) || m.pulse <= 0 || m.pulse > 300) return false;
+  return true;
+}
+
+function isValidProfile(item: unknown): item is UserProfile {
+  if (!item || typeof item !== 'object') return false;
+  const p = item as Record<string, unknown>;
+  return typeof p.id === 'string' && p.id.trim().length > 0 && typeof p.name === 'string' && p.name.trim().length > 0;
+}
+
 /**
  * Creates realistic synthetic demo measurements with natural variance, morning and evening sessions.
  * Used exclusively in Demo Mode or explicit PDF stress tests — never auto-seeded into Production Mode.
@@ -322,9 +339,8 @@ export const StorageService = {
           return initial;
         }
         const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) && parsed.length > 0
-          ? parsed
-          : [DEMO_PROFILE_PRIMARY, DEMO_PROFILE_SECONDARY];
+        const valid = Array.isArray(parsed) ? parsed.filter(isValidProfile) : [];
+        return valid.length > 0 ? valid : [DEMO_PROFILE_PRIMARY, DEMO_PROFILE_SECONDARY];
       } catch {
         return [DEMO_PROFILE_PRIMARY, DEMO_PROFILE_SECONDARY];
       }
@@ -339,7 +355,8 @@ export const StorageService = {
         return initial;
       }
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEFAULT_PROFILE];
+      const valid = Array.isArray(parsed) ? parsed.filter(isValidProfile) : [];
+      return valid.length > 0 ? valid : [DEFAULT_PROFILE];
     } catch {
       return [DEFAULT_PROFILE];
     }
@@ -438,7 +455,7 @@ export const StorageService = {
         const raw = store.getItem(STORAGE_KEYS.DEMO_MEASUREMENTS);
         if (!raw) return [];
         const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
+        return Array.isArray(parsed) ? parsed.filter(isValidMeasurement) : [];
       } catch {
         return [];
       }
@@ -455,7 +472,7 @@ export const StorageService = {
       }
       if (!raw) return [];
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      return Array.isArray(parsed) ? parsed.filter(isValidMeasurement) : [];
     } catch {
       return [];
     }
@@ -624,19 +641,36 @@ export const StorageService = {
   } {
     try {
       const data = JSON.parse(jsonString);
-      if (data && data.encrypted === true && data.data) {
+      if (data && data.encrypted === true && Array.isArray(data.data) && Array.isArray(data.salt) && Array.isArray(data.iv)) {
         return { isValid: true, isEncrypted: true };
       }
       if (!data || !Array.isArray(data.measurements)) {
         return {
           isValid: false,
           isEncrypted: false,
-          error: 'Ungültiges Format: Keine Messungsliste gefunden.',
+          error: 'Ungültiges Format: Keine gültige Messungsliste gefunden.',
         };
+      }
+      const validMeasurements = data.measurements.filter(isValidMeasurement);
+      if (validMeasurements.length !== data.measurements.length) {
+        return {
+          isValid: false,
+          isEncrypted: false,
+          error: 'Ungültiges Backup: Beschädigte oder unvollständige Messdatensätze erkannt.',
+        };
+      }
+      if (data.profiles !== undefined) {
+        if (!Array.isArray(data.profiles) || data.profiles.some((p: unknown) => !isValidProfile(p))) {
+          return {
+            isValid: false,
+            isEncrypted: false,
+            error: 'Ungültiges Backup: Beschädigte Profildaten erkannt.',
+          };
+        }
       }
       return { isValid: true, isEncrypted: false, payload: data as BackupPayload };
     } catch {
-      return { isValid: false, isEncrypted: false, error: 'JSON-Syntaxfehler.' };
+      return { isValid: false, isEncrypted: false, error: 'JSON-Syntaxfehler: Datei konnte nicht gelesen werden.' };
     }
   },
 
@@ -659,7 +693,12 @@ export const StorageService = {
 
     const dec = new TextDecoder();
     const plainJson = dec.decode(decrypted);
-    return JSON.parse(plainJson);
+    const parsed = JSON.parse(plainJson);
+    const validation = this.validateBackup(JSON.stringify(parsed));
+    if (!validation.isValid || !validation.payload) {
+      throw new Error(validation.error || 'Entschlüsselte Backup-Daten sind beschädigt.');
+    }
+    return validation.payload;
   },
 
   importBackupPayload(
@@ -672,14 +711,37 @@ export const StorageService = {
         return { success: false, message: 'Ungültige Messdaten im Backup.', count: 0 };
       }
 
+      const validMeasurements = payload.measurements.filter(isValidMeasurement);
+      if (validMeasurements.length !== payload.measurements.length) {
+        return {
+          success: false,
+          message: 'Import abgebrochen: Backup enthält fehlerhafte Messdatensätze. Bestehende Daten blieben unverändert.',
+          count: 0,
+        };
+      }
+
+      const fallbackProfileId = this.getActiveProfileId('production');
+      const normalizedMeasurements: Measurement[] = validMeasurements.map((m) => ({
+        ...m,
+        profileId: typeof m.profileId === 'string' && m.profileId.trim() ? m.profileId : fallbackProfileId,
+      }));
+
       // Always restore into Production namespace
       if (Array.isArray(payload.profiles) && payload.profiles.length > 0) {
+        const validProfiles = payload.profiles.filter(isValidProfile);
+        if (validProfiles.length !== payload.profiles.length) {
+          return {
+            success: false,
+            message: 'Import abgebrochen: Backup enthält ungültige Profildaten.',
+            count: 0,
+          };
+        }
         if (strategy === 'overwrite') {
-          store.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(payload.profiles));
-          store.setItem(STORAGE_KEYS.ACTIVE_PROFILE_ID, payload.profiles[0].id);
+          store.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(validProfiles));
+          store.setItem(STORAGE_KEYS.ACTIVE_PROFILE_ID, validProfiles[0].id);
         } else {
           const currentProfiles = this.getProfiles('production');
-          for (const p of payload.profiles) {
+          for (const p of validProfiles) {
             if (!currentProfiles.some((existing) => existing.id === p.id)) {
               currentProfiles.push(p);
             }
@@ -689,17 +751,17 @@ export const StorageService = {
       }
 
       if (strategy === 'overwrite') {
-        store.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(payload.measurements));
+        store.setItem(STORAGE_KEYS.MEASUREMENTS, JSON.stringify(normalizedMeasurements));
         return {
           success: true,
-          message: `${payload.measurements.length} Messungen vollständig wiederhergestellt.`,
-          count: payload.measurements.length,
+          message: `${normalizedMeasurements.length} Messungen vollständig wiederhergestellt.`,
+          count: normalizedMeasurements.length,
         };
       } else {
         const current = this.getAllMeasurements('production');
         const existingIds = new Set(current.map((m) => m.id));
         let addedCount = 0;
-        for (const m of payload.measurements) {
+        for (const m of normalizedMeasurements) {
           if (!existingIds.has(m.id)) {
             current.push(m);
             existingIds.add(m.id);

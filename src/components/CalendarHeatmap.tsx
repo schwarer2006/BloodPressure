@@ -156,8 +156,8 @@ export const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
       </div>
 
       {/* Timeframe Filter Buttons */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs text-slate-500 min-w-0">
+        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
           <span className="text-[11px]">Zeitraum:</span>
           {(
             [
@@ -183,14 +183,14 @@ export const CalendarHeatmap: React.FC<CalendarHeatmapProps> = ({
           ))}
         </div>
 
-        <span className="text-[10px] text-slate-400">
+        <span className="text-[10px] text-slate-400 shrink-0">
           Tag antippen für Einzelmessungen
         </span>
       </div>
 
       {/* Custom Date Range Picker */}
       {rangeMode === 'custom' && (
-        <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 text-xs">
           <div className="min-w-0">
             <label className="text-[10px] font-semibold text-slate-500 block mb-1">Von</label>
             <input

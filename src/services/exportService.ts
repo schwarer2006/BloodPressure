@@ -639,7 +639,7 @@ export async function generatePdfDocument(
   const calendarStart = new Date(
     calendarEnd.getFullYear(),
     calendarEnd.getMonth(),
-    calendarEnd.getDate() - 27
+    calendarEnd.getDate() - 29
   );
 
   const calendarWeeks = buildCalendarWeeks({
@@ -920,6 +920,13 @@ export async function generatePdfDocument(
       MARGIN + 5,
       curY + pulseBoxH - 2.5
     );
+  } else {
+    doc.setFont(F, 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Keine Pulswerte im gewählten Zeitraum', MARGIN + CONTENT_W / 2, curY + pulseBoxH / 2, {
+      align: 'center',
+    });
   }
 
   curY += pulseBoxH + 7;

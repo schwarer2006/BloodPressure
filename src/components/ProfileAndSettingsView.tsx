@@ -624,7 +624,7 @@ export const ProfileAndSettingsView: React.FC<ProfileAndSettingsViewProps> = ({
           <div className="flex items-center gap-2">
             <Code2 className="w-4 h-4 text-sky-400 shrink-0" />
             <h3 className="text-sm font-bold">
-              Android Capacitor 8 Build-Architektur (v0.1.1)
+              Android Capacitor 8 Build-Architektur (v0.1.2)
             </h3>
           </div>
           <button
@@ -645,11 +645,11 @@ export const ProfileAndSettingsView: React.FC<ProfileAndSettingsViewProps> = ({
         <div className="flex items-center gap-2 text-emerald-600">
           <ShieldCheck className="w-4 h-4 shrink-0" />
           <h3 className="text-sm font-bold">
-            Datenschutzgarantie: 100% Offline & Privat
+            Datenschutz &amp; Speicherung: 100% Offline &amp; Lokal
           </h3>
         </div>
         <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-          Alle Messwerte, biometrischen Profildaten und Kamerafotos verbleiben ausschließlich lokal in Ihrem Gerät. Es findet keinerlei Übermittlung an externe Cloud-Dienste oder fremde Server statt.
+          Alle Messwerte, Profildaten und Kamerafotos verbleiben lokal im Gerätespeicher (unverschlüsselte App-Datenbank; es erfolgt keine Übermittlung an externe Cloud-Dienste oder Server). Für den externen Export stehen unter „Berichte“ passwortgeschützte AES-GCM-256-Backups zur Verfügung.
         </p>
 
         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-2">
@@ -825,7 +825,7 @@ export const ProfileAndSettingsView: React.FC<ProfileAndSettingsViewProps> = ({
               <div className="flex items-center gap-2">
                 <Code2 className="w-4 h-4 text-sky-400 shrink-0" />
                 <h3 className="text-sm font-bold">
-                  Android-Integration & Build (Capacitor 8 / v0.1.1)
+                  Android-Integration &amp; Build (Capacitor 8 / v0.1.2)
                 </h3>
               </div>
               <button
@@ -852,8 +852,8 @@ cd android
                 <span className="text-sky-400 font-bold">// Update-Kompatibilität:</span>
                 <pre className="text-slate-300 mt-1 whitespace-pre-wrap">
 {`applicationId: "app.bloodpressure.mobile"
-versionCode: 2
-versionName: "0.1.1"`}
+versionCode: 3
+versionName: "0.1.2"`}
                 </pre>
               </div>
             </div>

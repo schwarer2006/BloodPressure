@@ -263,7 +263,7 @@ export const ReportsAndExportView: React.FC<ReportsAndExportViewProps> = ({
           Berichte & Export
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Medizinische Arzt-Tagebücher (DIN A4), CSV-Tabellen und sichere Backups
+          Medizinische Arzt-Tagebücher (DIN A4), CSV-Tabellen und passwortgeschützte Backups (AES-GCM-256)
         </p>
       </div>
 
